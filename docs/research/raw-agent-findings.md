@@ -629,7 +629,7 @@ Proof for the two official surfaces specifically:
 
 ### The two genuine non-Graph exceptions
 
-**(a) Ads Manager bulk CSV import/export.** Real, and genuinely not the API — you download an XLSX/CSV of your account structure, edit it, and re-upload through the Ads Manager UI. It is the only high-volume bulk-edit surface Meta offers to non-API users. **But it is UI-only: there is no documented endpoint to submit a bulk sheet programmatically.** Reaching it from Claude means browser automation (Playwright), which is brittle, fights Meta's bot detection, and would drive Harvey's logged-in session. Not a serious candidate; noted for completeness.
+**(a) Ads Manager bulk CSV import/export.** Real, and genuinely not the API — you download an XLSX/CSV of your account structure, edit it, and re-upload through the Ads Manager UI. It is the only high-volume bulk-edit surface Meta offers to non-API users. **But it is UI-only: there is no documented endpoint to submit a bulk sheet programmatically.** Reaching it from Claude means browser automation (Playwright), which is brittle, fights Meta's bot detection, and would drive the maintainer's logged-in session. Not a serious candidate; noted for completeness.
 
 **(b) Meta Business Suite UI automation generally** — same verdict, same reasons.
 
@@ -715,7 +715,7 @@ Release cadence, inferred from `facebook-business` SDK major bumps (Meta ships t
 
 **App ID NOT required in Claude Desktop / claude.ai. NOT required in Claude Code CLI either, in principle — Meta's `--client-id` documentation is stale/defensive, and the CLI's real blocker is an Anthropic-side redirect_uri bug, not a Meta app requirement.**
 
-Harvey's lived experience is correct. The earlier probe was wrong.
+The maintainer's lived experience is correct. The earlier probe was wrong.
 
 ## Why the earlier probe was wrong
 
@@ -773,7 +773,7 @@ Redirect URI is validated **independently**, against the pre-registered app's ow
 
 Note `http://localhost:8080/callback` is normalised in the response to `http://127.0.0.1:8080/callback`.
 
-**So: Anthropic (and OpenAI) are pre-registered OAuth clients with Meta. Meta ships a first-party "ads MCP server" app per partner and hands its client_id to any caller that identifies as that partner.** That is exactly the mechanism behind Harvey's "you just paste a URL and it registers in the background" experience.
+**So: Anthropic (and OpenAI) are pre-registered OAuth clients with Meta. Meta ships a first-party "ads MCP server" app per partner and hands its client_id to any caller that identifies as that partner.** That is exactly the mechanism behind the maintainer's "you just paste a URL and it registers in the background" experience.
 
 The `Anthropic`-fails / `Claude`-passes split is worth noting as a fragility: the allowlist is keyed on a display string, not on anything cryptographic.
 
@@ -832,7 +832,7 @@ No genuine Reddit/forum first-hand accounts found. All other coverage is the sam
 
 ## What I could NOT determine without a real Meta login
 
-1. **Whether the OAuth consent then succeeds for Harvey's account.** Registration and the authorize redirect both work unauthenticated; what happens *after* login — consent screen, or an eligibility/allowlist refusal on `ads_mcp_management` — is invisible without credentials.
+1. **Whether the OAuth consent then succeeds for the maintainer's account.** Registration and the authorize redirect both work unauthenticated; what happens *after* login — consent screen, or an eligibility/allowlist refusal on `ads_mcp_management` — is invisible without credentials.
 2. **Whether `is_ads_mcp_enabled` bites.** Unresolvable by probe. Only an authenticated attempt settles it.
 3. **The exact `client_name` Claude Desktop actually sends.** Inferred, not observed. Any "claude"-containing string works, so the risk is low.
 

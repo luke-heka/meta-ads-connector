@@ -28,7 +28,7 @@ curl -s -X POST https://api.linear.app/graphql \
   -d '{"query":"{ issue(id:\"DP-123\") { title description state { name } } }"}'
 ```
 
-Team ID for `DP`: `959c7c45-b643-4dfb-95b9-fd3bbdd135f0`
+Team ID for `DP`: see `LINEAR_TEAM_ID` in `~/selrai/.env`
 
 ## Creating issues
 

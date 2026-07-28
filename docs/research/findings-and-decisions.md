@@ -112,7 +112,7 @@ Meta renamed the tiers (old "Standard" → "Limited", old "Advanced" → "Full")
 
 ### `is_ads_mcp_enabled` — dropped
 
-A rumoured per-account rollout flag. **Appears nowhere in Meta's docs**; Meta documents no way to check or request it. Zero first-hand reports; all sourced to one SEO content-farm cluster, several of them third-party MCP vendors selling the alternative. Harvey's separate observation (Claude reporting an account can't have data collected) is a different symptom, most likely originating in one of Selr's own skills rather than in Meta's platform. **Dropped from scope.**
+A rumoured per-account rollout flag. **Appears nowhere in Meta's docs**; Meta documents no way to check or request it. Zero first-hand reports; all sourced to one SEO content-farm cluster, several of them third-party MCP vendors selling the alternative. The maintainer's separate observation (Claude reporting an account can't have data collected) is a different symptom, most likely originating in one of Selr's own skills rather than in Meta's platform. **Dropped from scope.**
 
 ---
 
