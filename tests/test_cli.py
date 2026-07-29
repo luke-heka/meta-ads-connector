@@ -22,6 +22,7 @@ from .conftest import (
     Recorder,
     installedCli,
     registeredMcp,
+    unregisteredMcp,
 )
 
 SUBCOMMANDS = [
@@ -31,6 +32,7 @@ SUBCOMMANDS = [
     "store-token",
     "mint-token",
     "register-mcp",
+    "login",
     "repair-assets",
     "exec",
 ]
@@ -107,8 +109,7 @@ def test_install_force_flag_is_wired_through(
 def test_register_mcp_app_id_flag_is_wired_through(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
-    runner.onPath("claude")
-    runner.respond(["claude", "mcp", "list"], stdout="No MCP servers configured.")
+    unregisteredMcp(runner)
     runner.respond(["claude", "mcp", "add"], stdout="added")
 
     run(["register-mcp", "--app-id", "1234567890"], ctx=ctx)

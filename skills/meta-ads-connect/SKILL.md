@@ -26,8 +26,8 @@ working MCP connection counts as connected whatever state the CLI is in.
 | `state` | Exit | What it means | What you do |
 | --- | --- | --- | --- |
 | `OK` | 0 | Connected — at least one transport is live | **Stop. Do not run setup.** Get on with what the user asked. |
-| `MCP_NEEDS_LOGIN` | 18 | MCP server registered, Meta login not yet done | Tell the user to log in: use the connection, or run `/mcp`, and approve in the browser. Not a failure — never reinstall. |
-| `MCP_INCOMPLETE` | 19 | Logged in, but the connection is not working | One-step re-consent: `/mcp`, log in again, approve everything listed. Never reinstall. |
+| `MCP_NEEDS_LOGIN` | 18 | MCP server registered, Meta login not yet done | Run `meta-ads-connect login` — it opens the browser approval itself. Not a failure — never reinstall. |
+| `MCP_INCOMPLETE` | 19 | Logged in, but the connection is not working | One-step re-consent: run `meta-ads-connect login` again; the user approves everything listed. Never reinstall. |
 | `MCP_MISSING` | 6 | CLI connected, MCP server not registered | `register-mcp` only. Nothing else. |
 | `NO_AD_ACCOUNTS` | 7 | CLI token works, no accounts assigned | `repair-assets` only. |
 | `TOKEN_REJECTED` | 1 | Meta revoked or rejected the CLI token | Tell the user plainly, offer to re-mint, then `mint-token`. |
@@ -47,8 +47,8 @@ claude mcp list
 
 A `meta-ads` line marked connected means the user **is** connected — behave
 exactly as for `OK`. A line marked "Needs authentication" is `MCP_NEEDS_LOGIN`:
-ask for the login. No `meta-ads` line at all means not registered — go to
-"Connecting".
+run the login (see "Connecting"). No `meta-ads` line at all means not
+registered — go to "Connecting".
 
 Never reconnect what is already connected. Restarting a finished setup is the
 single most-reported failure of every previous version of this, and re-running
@@ -119,16 +119,34 @@ do not ask them to paste it to you. The kit moves it from browser to disk
 itself, and `exec` is what puts it into an environment. If you ever need to
 prove it exists, run `doctor`, which redacts it.
 
+## Rule 7 — Your tool list is not the connection.
+
+A `mcp__meta-ads__*` tool appearing in your tool list is **not** proof of a
+working connection: the list can be stale from session start, and a complete,
+valid-looking tool schema has been observed while the server was deleted and
+unauthenticated. The only confirmation is a live read — list the ad accounts
+and name them back.
+
+The reverse also holds. MCP tools arrive **asynchronously**, roughly 13–20
+seconds after a session starts, so their absence early in a session is not
+evidence of a problem. Do not invent a connection problem for a user who does
+not have one — wait a moment and check again, or run `probe`.
+
+If a restart genuinely is needed, say it in a way that works on any machine:
+fully quit Claude and open it again — closing the window may not be enough.
+
 ## Connecting
 
 Only when `probe` returned `NOT_INSTALLED`, or `claude mcp list` shows no
 `meta-ads` server. Tell the user first: this takes about a minute, they will
-log in to Meta in their browser once, and they will be asked to approve access
-to their ad accounts and pages. Tell them to approve everything listed and
-**not to deselect any ad accounts or pages** on Meta's screen — a narrowed
-approval comes back as a broken connection, not a safer one.
+log in to Meta in their browser once, and Meta will ask them to approve access
+for these scopes — ads management and reading, catalog management, business
+management, their Pages list, Instagram basics, and Ads MCP management. Tell
+them to approve everything listed and **not to deselect any ad accounts or
+pages** on Meta's screen — a narrowed approval comes back as a broken
+connection, not a safer one.
 
-Preferred, when the helper package is installed:
+Step 1 — register. Preferred, when the helper package is installed:
 
 ```bash
 meta-ads-connect register-mcp
@@ -137,24 +155,38 @@ meta-ads-connect register-mcp
 Without the package — exactly as good:
 
 ```bash
-claude mcp add --transport http meta-ads https://mcp.facebook.com/ads
+claude mcp add --transport http --scope user meta-ads https://mcp.facebook.com/ads
 ```
+
+User scope matters: it makes the connection exist in every project folder, not
+just the one this happened to run in. `register-mcp` also silently moves an
+older local-scope registration to user scope — that is expected, not an error.
 
 No token is minted anywhere in this flow, and nothing is created at Meta.
 
-Then have them log in. Announce that a browser window is about to open, then
-use the connection — ask it to list their ad accounts — and Claude Code opens
-Meta's consent screen on first use (or the user runs `/mcp` and picks
-`meta-ads`).
+Step 2 — log in. Run it yourself; do not hand the user an instruction you
+could have executed:
 
-After consent, verify with a live read: list the ad accounts through the MCP
-and name them back to the user. The live read is what confirms the connection —
-not the flow's own success message. If the read fails or accounts the user
-expected are missing, treat it as `MCP_INCOMPLETE`: tell them what is missing
-and offer the one-step re-consent, never a reinstall.
+```bash
+meta-ads-connect login
+```
 
-Re-running any of this on a connected machine is harmless: registration
-detects the already-registered case and says so.
+It opens Meta's approval screen in their browser, waits for the click, and
+verifies the result by reading the registration back. **Do not run
+`claude mcp login` directly as a tool call** — it needs a controlling terminal
+and dies without one; `meta-ads-connect login` wraps it in a pseudo-terminal
+precisely so you can run it. If the kit says the login must run in the user's
+own terminal (exit 20), give them the one line it printed —
+`claude mcp login meta-ads` — and nothing else.
+
+Step 3 — prove it. Verify with a live read: list the ad accounts through the
+MCP and name them back to the user. The live read is what confirms the
+connection — not the flow's own success message (Rule 7). If the read fails or
+accounts the user expected are missing, treat it as `MCP_INCOMPLETE`: tell
+them what is missing and offer the one-step re-consent, never a reinstall.
+
+Re-running any of this on a connected machine is harmless: registration and
+login both detect the already-done case and say so.
 
 To undo it entirely: `claude mcp remove meta-ads`. Access can also be revoked
 at Meta's end at any time under facebook.com → Settings & privacy → Business
@@ -183,17 +215,19 @@ automation.
 
    ```bash
    meta-ads-connect register-mcp --app-id THEIR_APP_ID
-   claude mcp add --transport http --client-id THEIR_APP_ID meta-ads https://mcp.facebook.com/ads
+   claude mcp add --transport http --scope user --client-id THEIR_APP_ID meta-ads https://mcp.facebook.com/ads
    ```
 
 The app stays in development mode. No App Review and no business verification
 are needed — those are only for apps that manage other people's ad accounts;
 this one only manages their own.
 
-If the `claude` command itself is not on PATH, registration cannot happen from
-a terminal at all. If the user works in the Claude desktop app, route them
-there instead: Settings → Connectors → Add custom connector →
-https://mcp.facebook.com/ads
+If the `claude` command itself is not on PATH, that is a PATH problem, never a
+verdict about the connection. Try the registration from your own shell first —
+your environment usually has the command even when the user's terminal does
+not. If it is missing there too, have the user fully quit Claude and open it
+again — closing the window may not be enough — and retry. Do not tell them to
+reinstall anything.
 
 ## The optional CLI path
 
@@ -282,6 +316,28 @@ It reports each component separately — each transport on its own line — and
 names the next action for each. Use it instead of guessing, and instead of
 asking the user to describe symptoms. Without the helper package, `claude mcp
 list` is the check for the primary transport.
+
+The login has its own ladder, and it is bounded:
+
+- `login` exits 20 — it could not drive the login from here. The user pastes
+  one line, `claude mcp login meta-ads`, into their own terminal. That is the
+  whole instruction.
+- `login` exits 21 — the login ran and did not authenticate. The approval was
+  abandoned or narrowed, or the browser never opened (the kit prints the
+  consent link to open by hand). Offer **one** clean retry with the coaching
+  from "Connecting": approve everything, deselect nothing. Neither exit ever
+  means reinstall.
+- After two attempts at the same step, stop. Run `doctor`: it writes a
+  redacted diagnostic file and names it — tell the user to paste that file's
+  contents when asking for help in the community. Never loop a third time.
+- Connected but no ad accounts visible — that is Business Manager assignment,
+  not a broken connection. Walk them through assigning the account in
+  Business Settings (`repair-assets` prints the steps on the CLI path). Never
+  send them back through a setup that already succeeded.
+- Worked yesterday, rejected today — their Meta approval was withdrawn (it
+  can be revoked under facebook.com → Settings & privacy → Business
+  integrations). Say that plainly, then restore it with one `meta-ads-connect
+  login` and one approval click.
 
 Known cases worth recognising:
 

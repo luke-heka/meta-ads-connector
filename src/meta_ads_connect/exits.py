@@ -63,5 +63,13 @@ class Exit(IntEnum):
     #: not cover what the kit needs. The action is re-consent, not a reinstall.
     MCP_INCOMPLETE = 19
 
+    # --- login: added by the connect-path fix (DP-5) ------------------------
+    #: The kit could not drive the login itself; the member must run one
+    #: pasteable command in their own terminal. Not a failure of the setup.
+    MCP_LOGIN_MANUAL = 20
+    #: The login ran and did not end in an authenticated connection — the
+    #: approval was abandoned or narrowed. The action is one clean retry.
+    MCP_LOGIN_FAILED = 21
+
     #: Bad arguments or an unexpected internal failure.
     USAGE = 64

@@ -10,7 +10,7 @@ account — connecting happens in your next session, and you approve it yourself
 ```text
 Install the Meta Ads connector kit on this machine. Follow these steps exactly, in order, and do nothing beyond them.
 
-1. Check that you are running as Claude Code with access to a terminal and a ~/.claude/skills folder. If you are not — for example this is the Claude desktop or web app — stop here and tell me to open Claude Code and paste this prompt there. If I only use the desktop app, tell me to instead add the connector under Settings → Connectors → Add custom connector, using the URL https://mcp.facebook.com/ads
+1. Check that you are running as Claude Code with access to a terminal and a ~/.claude/skills folder. Claude Code in the terminal and Claude Code inside the desktop app both count — the desktop app has a terminal and skills too. Only stop if you truly have no terminal — for example this is claude.ai in a web browser — and in that case tell me to open Claude Code (terminal or desktop app) and paste this prompt there.
 2. Check that git is available. If it is not, stop and tell me the one thing to install (git), with the easiest way to get it on my operating system.
 3. Clone https://github.com/luke-heka/meta-ads-connector into ~/meta-ads-connector. If that folder already exists, run git pull inside it instead of cloning a second copy.
 4. Create ~/.claude/skills if it does not exist, then copy ~/meta-ads-connector/skills/meta-ads-connect into ~/.claude/skills/, replacing any earlier copy.

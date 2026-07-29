@@ -57,6 +57,22 @@ class CommandRunner(Protocol):
         including a timeout, so callers have one shape to handle.
         """
 
+    def runPty(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> CommandResult:
+        """Run under a pseudo-terminal, for commands that refuse a plain pipe.
+
+        ``claude mcp login`` requires a controlling terminal: from an ordinary
+        subprocess it exits with "stdin isn't a terminal". Under a pty it
+        completes on its own — the localhost OAuth callback does the work and
+        nothing needs typing. Same error contract as :meth:`run`; the two
+        output streams arrive interleaved on ``stdout`` because a pty has only
+        one. POSIX only — callers gate on platform before reaching for this.
+        """
+
 
 class RealCommandRunner:
     """The production implementation. Thin on purpose: it holds no policy."""
@@ -96,6 +112,65 @@ class RealCommandRunner:
             stdout=completed.stdout or "",
             stderr=completed.stderr or "",
         )
+
+    def runPty(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> CommandResult:
+        import os
+        import pty
+        import select
+        import time
+
+        argv = list(argv)
+        master, slave = pty.openpty()
+        try:
+            proc = subprocess.Popen(
+                argv,
+                stdin=slave,
+                stdout=slave,
+                stderr=slave,
+                close_fds=True,
+            )
+        except FileNotFoundError as exc:
+            os.close(master)
+            os.close(slave)
+            raise CommandNotFound(argv[0]) from exc
+        os.close(slave)
+
+        chunks: list[bytes] = []
+        deadline = time.monotonic() + timeout if timeout is not None else None
+        timed_out = False
+        while True:
+            if deadline is not None and time.monotonic() > deadline:
+                proc.kill()
+                timed_out = True
+                break
+            ready, _, _ = select.select([master], [], [], 0.5)
+            if ready:
+                try:
+                    data = os.read(master, 4096)
+                except OSError:
+                    # The child closed its end; on Linux this raises EIO.
+                    break
+                if not data:
+                    break
+                chunks.append(data)
+            elif proc.poll() is not None:
+                break
+        os.close(master)
+        returncode = proc.wait()
+        output = b"".join(chunks).decode("utf-8", errors="replace")
+        if timed_out:
+            return CommandResult(
+                argv=tuple(argv),
+                returncode=124,
+                stdout=output,
+                stderr=f"timed out after {timeout}s",
+            )
+        return CommandResult(argv=tuple(argv), returncode=returncode, stdout=output, stderr="")
 
 
 def _decode(raw: str | bytes | None) -> str:
