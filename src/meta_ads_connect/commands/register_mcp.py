@@ -19,7 +19,12 @@ from ..components import McpScope, McpState, detectMcp
 from ..config import MCP_NAME, MCP_URL
 from ..context import Context
 from ..exits import Exit
-from ..messages import CLAUDE_UNREACHABLE_ACTION, MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
+from ..messages import (
+    CLAUDE_UNREACHABLE_ACTION,
+    MCP_LOGIN_ACTION,
+    MCP_RECONSENT_ACTION,
+    warnClaudeMissing,
+)
 from ..processes import CommandNotFound
 
 #: Substrings that identify the Claude Code redirect_uri regression in whatever
@@ -56,9 +61,7 @@ def runRegisterMcp(ctx: Context, *, app_id: str | None = None) -> int:
     try:
         result = ctx.runner.run(_addArgv(app_id), timeout=180)
     except CommandNotFound:
-        ctx.warn("The `claude` command is not on your PATH, so the MCP server cannot be registered.")
-        ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
-        return int(Exit.CLAUDE_CLI_MISSING)
+        return warnClaudeMissing(ctx, prevented="the MCP server cannot be registered")
 
     if result.ok:
         ctx.say(
@@ -101,9 +104,7 @@ def _migrateToUserScope(ctx: Context, *, app_id: str | None) -> int:
         )
         result = ctx.runner.run(_addArgv(app_id), timeout=180) if removed.ok else removed
     except CommandNotFound:
-        ctx.warn("The `claude` command is not on your PATH, so the registration cannot be moved.")
-        ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
-        return int(Exit.CLAUDE_CLI_MISSING)
+        return warnClaudeMissing(ctx, prevented="the registration cannot be moved")
 
     if not result.ok:
         ctx.warn("Moving the registration failed.")

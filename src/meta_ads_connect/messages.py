@@ -15,7 +15,13 @@ the same words whichever command they happened to run.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .config import MCP_NAME
+from .exits import Exit
+
+if TYPE_CHECKING:
+    from .context import Context
 
 #: What to do when the MCP server is registered but the Meta login has never
 #: been completed. The action is a login, never a reinstall. The kit drives
@@ -47,6 +53,18 @@ CLAUDE_UNREACHABLE_ACTION = (
     "If it is still not found there, fully quit Claude and open it again — "
     "closing the window may not be enough."
 )
+
+
+def warnClaudeMissing(ctx: "Context", *, prevented: str) -> int:
+    """The one way a missing `claude` command is reported, wherever it bites.
+
+    Three subcommands hit this on different verbs; the shape — what was
+    prevented, then the route that does not need the command — must not drift
+    between them.
+    """
+    ctx.warn(f"The `claude` command is not on your PATH, so {prevented}.")
+    ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
+    return int(Exit.CLAUDE_CLI_MISSING)
 
 _NO_BUSINESS_MANAGER = """You do not have a Business Manager yet, and one is needed before an access token
 can reach any ad account.

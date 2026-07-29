@@ -21,7 +21,7 @@ from ..components import McpState, detectMcp
 from ..config import MCP_NAME
 from ..context import Context
 from ..exits import Exit
-from ..messages import CLAUDE_UNREACHABLE_ACTION
+from ..messages import CLAUDE_UNREACHABLE_ACTION, warnClaudeMissing
 from ..processes import CommandNotFound
 from ..state import readState, writeState
 
@@ -62,9 +62,9 @@ def runLogin(ctx: Context) -> int:
         return int(Exit.OK)
 
     # NEEDS_LOGIN or INCOMPLETE: the fix for both is the same approval.
-    if ctx.is_windows:
-        # The pty route is untested on Windows; a clean handover beats an
-        # unhelpful failure.
+    if not _ptySupported(ctx.platform):
+        # The pty route is verified on macOS and Linux only; anywhere else a
+        # clean handover beats an unhelpful failure.
         return _handOverToMember(ctx)
 
     ctx.say(
@@ -74,9 +74,7 @@ def runLogin(ctx: Context) -> int:
     try:
         result = ctx.runner.runPty(["claude", "mcp", "login", MCP_NAME], timeout=_LOGIN_TIMEOUT)
     except CommandNotFound:
-        ctx.warn("The `claude` command is not on your PATH, so the login cannot be run from here.")
-        ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
-        return int(Exit.CLAUDE_CLI_MISSING)
+        return warnClaudeMissing(ctx, prevented="the login cannot be run from here")
 
     # The command's own success message is not the proof: verify by reading
     # the registration back.
@@ -95,6 +93,10 @@ def runLogin(ctx: Context) -> int:
         return _handOverToMember(ctx)
 
     return _didNotAuthenticate(ctx, result.output)
+
+
+def _ptySupported(platform: str) -> bool:
+    return platform.startswith("darwin") or platform.startswith("linux")
 
 
 def _needsRealTerminal(output: str) -> bool:
@@ -140,7 +142,11 @@ def _didNotAuthenticate(ctx: Context, output: str) -> int:
 
 
 def _consentUrl(output: str) -> str | None:
-    match = re.search(r"https://\S+", output)
+    """The Meta consent link, if the login printed one.
+
+    A facebook.com URL is preferred over the first URL in the output, which
+    could as easily be a docs link or the localhost callback."""
+    match = re.search(r"https://\S*facebook\.com\S*", output) or re.search(r"https://\S+", output)
     return match.group(0).rstrip(".,)") if match else None
 
 

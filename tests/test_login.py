@@ -127,6 +127,44 @@ def test_on_windows_the_pty_is_never_attempted(
     assert f"claude mcp login {MCP_NAME}" in out.text
 
 
+def test_an_unrecognised_platform_also_gets_the_handover_not_the_pty(
+    runner: FakeCommandRunner,
+    graph: FakeGraphClient,
+    paths: Paths,
+    out: Recorder,
+    err: Recorder,
+) -> None:
+    """The pty route is verified on macOS and Linux only; anywhere else the
+    clean handover beats an unhelpful failure."""
+    ctx = Context(paths=paths, runner=runner, graph=graph, out=out, err=err, platform="cygwin")
+    needsLoginMcp(runner)
+
+    assert runLogin(ctx) == Exit.MCP_LOGIN_MANUAL
+    assert runner.pty_calls == []
+
+
+def test_the_consent_url_offered_is_metas_not_the_first_link_in_the_output(
+    ctx: Context, runner: FakeCommandRunner, err: Recorder
+) -> None:
+    """Login output can lead with a docs link or the localhost callback; the
+    member must be handed the approval screen, not whatever came first."""
+    needsLoginMcp(runner)
+    runner.respondPty(
+        ["claude", "mcp", "login"],
+        stdout=(
+            "See https://docs.claude.com/mcp for help.\n"
+            f"Opening browser: {CONSENT_URL}\n"
+            "Authentication timed out."
+        ),
+        returncode=1,
+    )
+
+    runLogin(ctx)
+
+    assert CONSENT_URL in err.text
+    assert "docs.claude.com" not in err.text
+
+
 def test_an_abandoned_approval_offers_one_clean_retry_with_coaching(
     ctx: Context, runner: FakeCommandRunner, err: Recorder
 ) -> None:
