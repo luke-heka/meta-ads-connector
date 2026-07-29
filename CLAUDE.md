@@ -13,7 +13,7 @@ for audiences and benchmarks, raw Graph API out).
 
 ### Issue tracker
 
-Linear — Selr AI workspace, **Digital Products** (`DP`) team. GitHub Issues on this repo
+Linear — the maintainer's internal workspace. GitHub Issues on this repo
 is not the tracker. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
