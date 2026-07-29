@@ -170,7 +170,7 @@ System user tokens do not expire. Sixty-day long-lived user tokens are the trap 
 never used.
 
 Minting is Playwright-driven, reusing the approach already proven in
-`harvey-selr/marketing-agency-workshop` module 3. The token is transferred from browser
+the `marketing-agency-workshop` repo, module 3. The token is transferred from browser
 to disk programmatically. It is never rendered to the transcript, never echoed, and
 never asked of the owner by hand. The one unavoidably human moment is the Meta login
 itself, which is announced clearly before the browser opens.

@@ -32,7 +32,7 @@ The spec's stated reason for fixing the scopes is that "a business owner has no 
 which to choose" and that "a token missing write scope makes the whole kit pointless".
 Neither argues against this scope specifically — both argue against *asking the user*,
 which we still do not do. The prior art the minting flow is ported from
-(`harvey-selr/marketing-agency-workshop`, `03-system-user.spec.ts`) also ticks
+(the `marketing-agency-workshop` repo, `03-system-user.spec.ts`) also ticks
 `business_management`, so this is what has actually been exercised against real Business
 Managers.
 

@@ -13,7 +13,7 @@ unavoidably human moment is the Meta login, which is announced before the
 browser opens.
 
 The selectors below are ported from ``platforms/meta/playwright/03-system-user.spec.ts``
-in ``harvey-selr/marketing-agency-workshop``, which has driven this flow against
+in the ``marketing-agency-workshop`` repo, which has driven this flow against
 real Business Managers. They are role- and label-based rather than structural,
 because Meta's Business Settings markup changes without notice.
 """

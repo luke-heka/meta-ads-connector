@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-28
 **Status:** Design locked. Build not started. One spike outstanding.
-**Repo:** `lukeselr/meta-ads-connector` (public) · local `~/selrai/products/meta-ads-connector/`
+**Repo:** `luke-heka/meta-ads-connector` (public)
 **Raw agent output:** [`raw-agent-findings.md`](./raw-agent-findings.md) (843 lines, all probe transcripts)
 
 ---
@@ -135,13 +135,13 @@ Nine distinct products found across one org (`selrai-company`) and four personal
 
 | Repo / path | What it is | Disposition |
 |---|---|---|
-| `lukeselr/meta-ads-connector` | **This kit.** | Build |
-| `lukeselr/meta-ads-mcp-setup` (public) | Current connector skill, official-MCP path, 3 files. Claims "no dev app needed" — accidentally correct, but for the wrong reason. | Supersede |
-| `harvey-selr/meta-ads-mcp-setup` | Zero-divergence fork | Delete or stub |
-| `luke-selrai/meta-ads-mcp-setup` | Old pipeboard version. **Repo gone**, still in kit index. | Purge from index |
-| `lukeselr/meta-ads-dashboard` (public) | Next.js + Supabase, verdict engine, approval queue. Most substantial Meta product owned. Unindexed. | Finished — not in scope |
+| `luke-heka/meta-ads-connector` | **This kit.** | Build |
+| `Mr-heka/meta-ads-mcp-setup` (public) | Current connector skill, official-MCP path, 3 files. Claims "no dev app needed" — accidentally correct, but for the wrong reason. | Supersede |
+| a teammate's `meta-ads-mcp-setup` | Zero-divergence fork | Delete or stub |
+| `luke-heka/meta-ads-mcp-setup` | Old pipeboard version. **Repo gone**, still in kit index. | Purge from index |
+| `Mr-heka/meta-ads-dashboard` (public) | Next.js + Supabase, verdict engine, approval queue. Most substantial Meta product owned. Unindexed. | Finished — not in scope |
 | `selrai-company/business-operating-strategy` | BOS `/ads` page, origin of the dashboard, shares `meta-audit-sync.ts` | Live — leave alone |
-| `harvey-selr/marketing-agency-workshop` | Module 3 holds the **Playwright system-user minting code to reuse** (`platforms/meta/playwright/03-system-user.spec.ts`). Wires pipeboard. | Mine for code; rewire later |
+| a teammate's `marketing-agency-workshop` | Module 3 holds the **Playwright system-user minting code to reuse** (`platforms/meta/playwright/03-system-user.spec.ts`). Wires pipeboard. | Mine for code; rewire later |
 | `selrai-company/claude-workshop-kit` | `managed-agents-setup` (pipeboard wiring), `meta-business-suite-connector` (IG/organic, not ads), `paid-ads` (**false claim of direct account access**) | Two small fixes |
 | `selrai-company/printing-press-cli-experiments` | `pp-facebook` Go CLI | Dropped |
 | Deck'd Out platform | Client lead-ads production | Untouched |
@@ -156,7 +156,7 @@ Practitioner "brain" skills, `ad-claims-audit`, and the WorldGym connector (whos
 
 ## 7. Shared understanding — the locked design
 
-**Repo:** `lukeselr/meta-ads-connector`, public, cloned from GitHub. Audience: Skool community business owners.
+**Repo:** `luke-heka/meta-ads-connector`, public, cloned from GitHub. Audience: Skool community business owners.
 
 **Skill:** one, named `meta-ads-connect`.
 
