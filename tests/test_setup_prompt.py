@@ -16,7 +16,7 @@ PROMPT_PATH = ROOT / "setup-prompt.md"
 README_PATH = ROOT / "README.md"
 SKILL_PATH = ROOT / "skills" / "meta-ads-connect" / "SKILL.md"
 
-REPO_URL = "https://github.com/lukeselr/meta-ads-connector"
+REPO_URL = "https://github.com/luke-heka/meta-ads-connector"
 SKILLS_DIR = "~/.claude/skills"
 CLONE_LOCATION = "~/meta-ads-connector"
 
