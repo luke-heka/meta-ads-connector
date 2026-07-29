@@ -1,7 +1,7 @@
 # Triage Labels
 
 The skills speak in terms of five canonical triage roles. This file maps those roles to
-the actual label strings used in this repo's issue tracker (Linear team `DP`).
+the actual label strings used in this repo's issue tracker (Linear).
 
 | Label in mattpocock/skills | Label in our tracker | Meaning                                  |
 | -------------------------- | -------------------- | ---------------------------------------- |
@@ -14,7 +14,7 @@ the actual label strings used in this repo's issue tracker (Linear team `DP`).
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the
 corresponding label string from this table.
 
-All five exist on the Digital Products team in Linear as of 2026-07-28. They sit
+All five exist on the maintainer's Linear team as of 2026-07-28. They sit
 alongside the team's pre-existing `Feature` / `Bug` / `Improvement` labels, which are
 category labels and unrelated to triage — don't substitute one for the other.
 
