@@ -15,22 +15,56 @@ the same words whichever command they happened to run.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .config import MCP_NAME
+from .exits import Exit
+
+if TYPE_CHECKING:
+    from .context import Context
 
 #: What to do when the MCP server is registered but the Meta login has never
-#: been completed. The action is a login, never a reinstall.
+#: been completed. The action is a login, never a reinstall. The kit drives
+#: the login itself; the pasteable line is the fallback for a machine without
+#: the helper package.
 MCP_LOGIN_ACTION = (
-    "Log in: ask Claude to read your ad accounts, or run /mcp in Claude Code, "
-    "and approve access in the browser window that opens. Nothing needs reinstalling."
+    "Log in to Meta: run `meta-ads-connect login` — your browser opens for a "
+    "one-time approval; approve everything listed and do not deselect any ad "
+    f"accounts or pages. Without the helper package, paste `claude mcp login {MCP_NAME}` "
+    "into a terminal instead. Nothing needs reinstalling."
 )
 
 #: What to do when a login happened but the connection does not work — the
 #: grant may not cover what the kit needs. One-step re-consent.
 MCP_RECONSENT_ACTION = (
-    "Log in again and approve everything listed: run /mcp in Claude Code, pick "
-    f"`{MCP_NAME}`, and do not deselect any ad accounts or pages on Meta's screen. "
+    "Log in again and approve everything listed: run `meta-ads-connect login`, and "
+    "this time do not deselect any ad accounts or pages on Meta's screen. Without "
+    f"the helper package, paste `claude mcp login {MCP_NAME}` into a terminal instead. "
     "Nothing needs reinstalling."
 )
+
+#: What to do when the `claude` command cannot be found. Registration and
+#: login are written through that command, so the honest move is to route to
+#: a place that has it rather than to guess.
+CLAUDE_UNREACHABLE_ACTION = (
+    "The `claude` command could not be found from here. Open a Claude Code "
+    "session — the terminal or the desktop app both work — and ask Claude to "
+    "connect your Meta ads from there: its own shell normally has the command. "
+    "If it is still not found there, fully quit Claude and open it again — "
+    "closing the window may not be enough."
+)
+
+
+def warnClaudeMissing(ctx: "Context", *, prevented: str) -> int:
+    """The one way a missing `claude` command is reported, wherever it bites.
+
+    Three subcommands hit this on different verbs; the shape — what was
+    prevented, then the route that does not need the command — must not drift
+    between them.
+    """
+    ctx.warn(f"The `claude` command is not on your PATH, so {prevented}.")
+    ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
+    return int(Exit.CLAUDE_CLI_MISSING)
 
 _NO_BUSINESS_MANAGER = """You do not have a Business Manager yet, and one is needed before an access token
 can reach any ad account.

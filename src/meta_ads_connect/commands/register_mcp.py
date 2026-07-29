@@ -15,11 +15,16 @@ under automation, which is worse than not automating it at all.
 
 from __future__ import annotations
 
-from ..components import McpState, detectMcp
+from ..components import McpScope, McpState, detectMcp
 from ..config import MCP_NAME, MCP_URL
 from ..context import Context
 from ..exits import Exit
-from ..messages import MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
+from ..messages import (
+    CLAUDE_UNREACHABLE_ACTION,
+    MCP_LOGIN_ACTION,
+    MCP_RECONSENT_ACTION,
+    warnClaudeMissing,
+)
 from ..processes import CommandNotFound
 
 #: Substrings that identify the Claude Code redirect_uri regression in whatever
@@ -29,6 +34,8 @@ _REDIRECT_URI_MARKERS = ("redirect_uri", "redirect uri", "are not registered for
 
 def runRegisterMcp(ctx: Context, *, app_id: str | None = None) -> int:
     existing = detectMcp(ctx)
+    if existing.registered and existing.scope is McpScope.LOCAL:
+        return _migrateToUserScope(ctx, app_id=app_id)
     if existing.state is McpState.CONNECTED:
         ctx.say(f"Meta's Ads MCP server is already registered as `{MCP_NAME}`. Nothing to do.")
         return int(Exit.OK)
@@ -48,30 +55,20 @@ def runRegisterMcp(ctx: Context, *, app_id: str | None = None) -> int:
         return int(Exit.MCP_INCOMPLETE)
     if existing.state is McpState.UNKNOWN:
         ctx.warn(existing.detail)
-        ctx.warn(
-            "Next: this step needs the Claude Code command line tool. "
-            "If you are using Claude inside the desktop app, add the connector there instead: "
-            f"Settings → Connectors → Add custom connector → {MCP_URL}"
-        )
+        ctx.warn(f"Next: {CLAUDE_UNREACHABLE_ACTION}")
         return int(Exit.CLAUDE_CLI_MISSING)
-
-    argv = ["claude", "mcp", "add", "--transport", "http"]
-    if app_id:
-        argv += ["--client-id", app_id]
-    argv += [MCP_NAME, MCP_URL]
 
     try:
-        result = ctx.runner.run(argv, timeout=180)
+        result = ctx.runner.run(_addArgv(app_id), timeout=180)
     except CommandNotFound:
-        ctx.warn("The `claude` command is not on your PATH, so the MCP server cannot be registered.")
-        return int(Exit.CLAUDE_CLI_MISSING)
+        return warnClaudeMissing(ctx, prevented="the MCP server cannot be registered")
 
     if result.ok:
-        ctx.say(f"Registered Meta's Ads MCP server as `{MCP_NAME}`.")
         ctx.say(
-            "Next: the first time Claude uses it you will be asked to approve access "
-            "in your browser. That is expected."
+            f"Registered Meta's Ads MCP server as `{MCP_NAME}`, available in all "
+            "your projects."
         )
+        ctx.say(f"Next: {MCP_LOGIN_ACTION}")
         return int(Exit.OK)
 
     if _isRedirectUriBug(result.output) and not app_id:
@@ -82,6 +79,46 @@ def runRegisterMcp(ctx: Context, *, app_id: str | None = None) -> int:
     ctx.warn(result.output.strip())
     ctx.warn("Next: run `meta-ads-connect doctor` for a component-by-component check.")
     return int(Exit.MCP_NEEDS_APP_ID if _isRedirectUriBug(result.output) else Exit.USAGE)
+
+
+def _addArgv(app_id: str | None) -> list[str]:
+    """The registration argv. `--scope user` is the fix for the stranding bug:
+    the `claude mcp add` default is local scope, which registers the server
+    only inside the folder setup happened to run in."""
+    argv = ["claude", "mcp", "add", "--transport", "http", "--scope", "user"]
+    if app_id:
+        argv += ["--client-id", app_id]
+    return argv + [MCP_NAME, MCP_URL]
+
+
+def _migrateToUserScope(ctx: Context, *, app_id: str | None) -> int:
+    """Silently repair a registration stranded at local scope by an older
+    version of this kit: remove it there, re-add at user scope, and say why."""
+    ctx.say(
+        "Meta's Ads MCP server is registered, but only for this folder — an older "
+        "version of this kit did that. Moving it so it works in all your projects."
+    )
+    try:
+        removed = ctx.runner.run(
+            ["claude", "mcp", "remove", "--scope", "local", MCP_NAME], timeout=180
+        )
+        result = ctx.runner.run(_addArgv(app_id), timeout=180) if removed.ok else removed
+    except CommandNotFound:
+        return warnClaudeMissing(ctx, prevented="the registration cannot be moved")
+
+    if not result.ok:
+        ctx.warn("Moving the registration failed.")
+        ctx.warn(result.output.strip())
+        ctx.warn("Next: run `meta-ads-connect doctor` for a component-by-component check.")
+        return int(Exit.USAGE)
+
+    moved = detectMcp(ctx)
+    if moved.state is McpState.CONNECTED:
+        ctx.say("Moved. The connection is registered for all your projects and working.")
+        return int(Exit.OK)
+    ctx.say("Moved. The registration now covers all your projects.")
+    ctx.say(f"Next: {MCP_LOGIN_ACTION}")
+    return int(Exit.OK)
 
 
 def _isRedirectUriBug(output: str) -> bool:

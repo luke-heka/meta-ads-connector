@@ -10,6 +10,7 @@ to end. Hence this cheap guard on the things that matter most.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -85,9 +86,88 @@ def test_it_states_the_independence_constraint(skill: str) -> None:
 def test_it_documents_the_bare_registration_command_as_first_class(skill: str) -> None:
     """The MCP path must be reachable with nothing installed but the skill —
     when `meta-ads-connect` is not on PATH, that is not a verdict."""
-    assert f"claude mcp add --transport http {MCP_NAME} {MCP_URL}" in skill
+    assert f"claude mcp add --transport http --scope user {MCP_NAME} {MCP_URL}" in skill
     assert "not on your PATH, that is not a verdict" in skill
     assert "claude mcp list" in skill
+
+
+def test_every_registration_command_carries_user_scope(skill: str) -> None:
+    """The original stranding bug: `claude mcp add` defaults to local scope,
+    which registers the server only in the folder setup ran in. If `--scope
+    user` disappears from any documented add command, that bug is back."""
+    add_lines = [line for line in skill.splitlines() if "claude mcp add" in line]
+    assert add_lines, "the skill no longer documents the bare registration command"
+    for line in add_lines:
+        assert "--scope user" in line, f"registration without user scope: {line.strip()!r}"
+
+
+def test_the_kit_drives_the_login_rather_than_instructing_the_user(skill: str) -> None:
+    """The login step is a command Claude can run. Handing the member an
+    instruction Claude could have executed is the dead end this fixes."""
+    assert "meta-ads-connect login" in skill
+    lowered = skill.lower()
+    assert "controlling terminal" in lowered
+    assert "claude mcp login" in skill  # the one-line fallback for the member
+
+
+def test_it_never_offers_mcp_or_reload_plugins_slash_commands(skill: str) -> None:
+    """Both are terminal-only vocabulary, and `/reload-plugins` is a no-op for
+    a user-scope server. Roughly 90% of members use the desktop app; an
+    instruction that only works in the terminal is a dead end for them.
+    URLs like `api/mcp/auth_callback` are fine — only the slash command is
+    forbidden."""
+    slash_command = re.search(r"(?<![\w./])/mcp\b(?!/)", skill)
+    assert slash_command is None, f"the skill still offers /mcp: {slash_command.group(0)!r}"
+    assert "/reload-plugins" not in skill
+
+
+def test_it_never_routes_to_the_desktop_connector_settings(skill: str) -> None:
+    """"Settings → Connectors → Add custom connector" is unverified and
+    probably wrong for locally-registered servers."""
+    assert "Add custom connector" not in skill
+
+
+def test_it_never_promises_in_session_tool_availability(skill: str) -> None:
+    """The session that registered the server cannot load its tools; a
+    promise that it can sends members hunting for something that is not
+    there."""
+    assert "tools are now available" not in skill.lower()
+
+
+def test_it_gives_no_mac_only_restart_instruction(skill: str) -> None:
+    assert "Cmd+Q" not in skill
+    assert "⌘Q" not in skill
+
+
+def test_it_says_the_tool_list_is_not_proof_of_a_connection(skill: str) -> None:
+    """A complete, valid Meta tool schema has been observed from a stale tool
+    list while the server was deleted and unauthenticated."""
+    unwrapped = " ".join(skill.lower().replace("**", "").split())
+    assert "not proof of a working connection" in unwrapped
+    assert "stale" in unwrapped
+
+
+def test_it_explains_that_mcp_tools_arrive_asynchronously(skill: str) -> None:
+    """Early absence is not evidence: tools appear ~13–20s after session
+    start, and inventing a connection problem from that is a real failure."""
+    unwrapped = " ".join(skill.lower().split())
+    assert "asynchronously" in unwrapped
+    assert "not evidence" in unwrapped
+
+
+def test_it_documents_the_scopes_meta_will_ask_to_approve(skill: str) -> None:
+    """The permission list must not be a surprise on Meta's screen."""
+    unwrapped = " ".join(skill.lower().split())
+    for hint in ("catalog", "business management", "pages", "instagram"):
+        assert hint in unwrapped, f"the consent preview never mentions {hint!r}"
+
+
+def test_the_login_ladder_is_bounded_and_ends_at_the_diagnostic_file(skill: str) -> None:
+    lowered = skill.lower()
+    assert "exits 20" in lowered
+    assert "exits 21" in lowered
+    assert "two attempts" in lowered
+    assert "diagnostic" in lowered
 
 
 def test_the_redirect_uri_fallback_lives_in_the_skill_itself(skill: str) -> None:
@@ -157,6 +237,7 @@ def test_it_names_every_subcommand_the_package_provides(skill: str) -> None:
         "install",
         "mint-token",
         "register-mcp",
+        "login",
         "repair-assets",
         "exec",
     ):

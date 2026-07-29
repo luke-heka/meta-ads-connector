@@ -79,12 +79,19 @@ def test_it_states_that_a_new_session_is_required(prompt: str) -> None:
     assert "new claude session" in prompt.lower()
 
 
-def test_it_recognises_claude_desktop_and_routes_it_to_the_connector(prompt: str) -> None:
-    """Installing a skill on Desktop is a silent no-op; the prompt must catch
-    that case rather than declare a success nothing will ever read."""
-    assert "desktop" in prompt.lower()
-    assert "Add custom connector" in prompt
-    assert "https://mcp.facebook.com/ads" in prompt
+def test_it_counts_the_desktop_app_as_a_full_install_surface(prompt: str) -> None:
+    """Claude Code inside the desktop app has a shell and ~/.claude/skills;
+    conflating "desktop" with "no terminal" turned working members away. Only
+    genuine claude.ai web chat lacks a terminal."""
+    lowered = prompt.lower()
+    assert "desktop app both count" in lowered
+    assert "web browser" in lowered
+
+
+def test_it_never_routes_to_the_desktop_connector_settings(prompt: str) -> None:
+    """"Settings → Connectors → Add custom connector" is unverified and
+    probably wrong for locally-registered servers — removed on purpose."""
+    assert "Add custom connector" not in prompt
 
 
 def test_the_python_package_is_optional_and_failure_is_success(prompt: str) -> None:

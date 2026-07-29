@@ -14,6 +14,7 @@ from typing import Sequence, TextIO
 from .commands.doctor import runDoctor
 from .commands.exec_cli import runExec
 from .commands.install import runInstall
+from .commands.login import runLogin
 from .commands.mint_token import runMintToken
 from .commands.probe import runProbe
 from .commands.register_mcp import runRegisterMcp
@@ -69,6 +70,11 @@ def buildParser() -> argparse.ArgumentParser:
     )
 
     subparsers.add_parser(
+        "login",
+        help="Complete the Meta login for the MCP server — opens the browser approval.",
+    )
+
+    subparsers.add_parser(
         "repair-assets", help="Fix missing Business Manager or unassigned ad account."
     )
 
@@ -102,6 +108,8 @@ def run(argv: Sequence[str] | None = None, *, ctx: Context | None = None, stdin:
         return runMintToken(context, headless=args.headless, business_id=args.business_id)
     if args.command == "register-mcp":
         return runRegisterMcp(context, app_id=args.app_id)
+    if args.command == "login":
+        return runLogin(context)
     if args.command == "repair-assets":
         return runRepairAssets(context)
     if args.command == "exec":

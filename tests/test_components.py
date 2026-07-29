@@ -11,6 +11,7 @@ from meta_ads_connect.commands.doctor import _TOKEN_NEXT_ACTIONS
 from meta_ads_connect.commands.probe import _TOKEN_PROSE
 from meta_ads_connect.components import (
     TOKEN_VERDICTS,
+    McpScope,
     McpState,
     TokenState,
     detectCli,
@@ -19,7 +20,14 @@ from meta_ads_connect.components import (
 from meta_ads_connect.config import CLI_VERSION, MCP_NAME, MCP_URL, Paths
 from meta_ads_connect.context import Context
 
-from .conftest import FakeCommandRunner, installedCli
+from .conftest import (
+    LOCAL_SCOPE_LINE,
+    FakeCommandRunner,
+    incompleteMcp,
+    installedCli,
+    needsLoginMcp,
+    registeredMcp,
+)
 
 
 def test_every_way_a_token_can_fail_is_classified_and_worded_in_both_commands() -> None:
@@ -120,30 +128,54 @@ def test_reports_no_cli_when_there_is_none(ctx: Context) -> None:
 def test_recognises_the_mcp_server_by_the_name_it_is_registered_under(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
-    runner.onPath("claude")
-    runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} - ✔ Connected")
+    registeredMcp(runner)
 
     assert detectMcp(ctx).state is McpState.CONNECTED
+
+
+def test_reads_registration_and_scope_from_one_get_call(
+    ctx: Context, runner: FakeCommandRunner
+) -> None:
+    """One call answers both questions, so probe and doctor can never
+    disagree about what is wrong."""
+    registeredMcp(runner)
+
+    status = detectMcp(ctx)
+
+    assert status.state is McpState.CONNECTED
+    assert status.scope is McpScope.USER
+    assert ("claude", "mcp", "get", MCP_NAME) in runner.calls
+
+
+def test_reads_a_local_scope_registration_as_local(
+    ctx: Context, runner: FakeCommandRunner
+) -> None:
+    """LOCAL is the stranding bug: registered only inside the folder setup
+    happened to run in. It must be representable without a new state."""
+    registeredMcp(runner, scope=LOCAL_SCOPE_LINE)
+
+    status = detectMcp(ctx)
+
+    assert status.state is McpState.CONNECTED
+    assert status.scope is McpScope.LOCAL
 
 
 def test_recognises_the_mcp_server_by_its_url_under_a_different_name(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
-    """The owner may have registered it under a name of their own."""
+    """The owner may have registered it under a name of their own; that must
+    not read as absent."""
     runner.onPath("claude")
+    runner.fails(["claude", "mcp", "get"], stderr='No MCP server named "meta-ads" found.')
     runner.respond(["claude", "mcp", "list"], stdout=f"my-ads: {MCP_URL} - ✔ Connected")
 
     assert detectMcp(ctx).state is McpState.CONNECTED
 
 
-def test_reads_the_waiting_for_login_state_from_the_listing(
+def test_reads_the_waiting_for_login_state(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
-    runner.onPath("claude")
-    runner.respond(
-        ["claude", "mcp", "list"],
-        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ⚠ Needs authentication · Use /mcp to authenticate",
-    )
+    needsLoginMcp(runner)
 
     status = detectMcp(ctx)
 
@@ -157,11 +189,7 @@ def test_reads_a_failing_connection_as_incomplete_not_missing(
 ) -> None:
     """Registered-but-broken must never read as absent — that is the
     reconnect bug all over again."""
-    runner.onPath("claude")
-    runner.respond(
-        ["claude", "mcp", "list"],
-        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✗ Failed to connect",
-    )
+    incompleteMcp(runner)
 
     status = detectMcp(ctx)
 
@@ -169,13 +197,16 @@ def test_reads_a_failing_connection_as_incomplete_not_missing(
     assert status.registered
 
 
-def test_a_listed_server_with_no_health_marker_counts_as_connected(
+def test_a_registered_server_with_no_health_marker_counts_as_connected(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
     """Claude Code's wording is not ours to pin. An unrecognised health note
-    on a listed server defaults to connected rather than to a repair."""
+    on a registered server defaults to connected rather than to a repair."""
     runner.onPath("claude")
-    runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} (HTTP)")
+    runner.respond(
+        ["claude", "mcp", "get", MCP_NAME],
+        stdout=f"{MCP_NAME}:\n  Scope: User config\n  Type: http\n  URL: {MCP_URL}\n",
+    )
 
     assert detectMcp(ctx).state is McpState.CONNECTED
 
@@ -184,6 +215,7 @@ def test_is_not_fooled_by_an_unrelated_server(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
     runner.onPath("claude")
+    runner.fails(["claude", "mcp", "get"], stderr='No MCP server named "meta-ads" found.')
     runner.respond(
         ["claude", "mcp", "list"],
         stdout="notion: https://mcp.notion.com/mcp - ✔ Connected",
@@ -197,11 +229,13 @@ def test_reports_unknown_rather_than_missing_when_claude_is_absent(ctx: Context)
     assert detectMcp(ctx).state is McpState.UNKNOWN
 
 
-def test_reports_unknown_when_claude_cannot_list_its_servers(
+def test_reports_unknown_when_claude_fails_for_reasons_other_than_absence(
     ctx: Context, runner: FakeCommandRunner
 ) -> None:
+    """Only "No MCP server named" means absent. Any other failure of the
+    `claude` CLI is never a verdict about the connection."""
     runner.onPath("claude")
-    runner.fails(["claude", "mcp", "list"], stderr="config unreadable")
+    runner.fails(["claude", "mcp", "get"], stderr="config unreadable")
 
     assert detectMcp(ctx).state is McpState.UNKNOWN
 
