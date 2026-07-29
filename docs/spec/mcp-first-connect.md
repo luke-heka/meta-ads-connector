@@ -89,8 +89,8 @@ in to Meta. Done.*
 10. As a Skool member, I want the prompt to succeed on a machine where `pip install` is impossible — no Python, or an externally-managed environment — so that the most common blocker on a non-developer machine is not a blocker at all.
 11. As a Skool member using Claude Desktop rather than Claude Code, I want the prompt to recognise that and route me to the Desktop custom-connector path instead, so that I am not silently installing a skill into a directory nothing reads.
 12. As a Skool member, I want the prompt to make no claim about connecting to Meta, so that I understand installing and connecting are two separate moments.
-13. As Harvey, I want the prompt to live in the repo as a versioned file, so that the text in the Skool post and the text in the repo cannot drift apart.
-14. As Harvey, I want the prompt short enough to read before pasting, so that a cautious member can satisfy themselves it is not doing anything alarming.
+13. As the maintainer, I want the prompt to live in the repo as a versioned file, so that the text in the Skool post and the text in the repo cannot drift apart.
+14. As the maintainer, I want the prompt short enough to read before pasting, so that a cautious member can satisfy themselves it is not doing anything alarming.
 
 ### Connecting — the first run of the skill
 
