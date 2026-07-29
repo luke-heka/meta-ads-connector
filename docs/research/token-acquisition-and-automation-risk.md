@@ -557,17 +557,9 @@ and refreshing a long-lived token, both require `client_secret`
 (["Make this call from your server, not a client. Your app secret is included in this API call, so
 you should never make the request
 client-side."](https://developers.facebook.com/docs/facebook-login/guides/access-tokens/get-long-lived)).
-A central Selr app therefore implies a Selr-operated token-broker service, with a hosted redirect
-URI, uptime, and every installer's ad-account credentials flowing through it. That is not a kit
-that people clone. That is a SaaS product, with the security and liability posture of one.
-
-Camp B has no such problem: the installer's own app secret sits on the installer's own machine,
-alongside the token it produces, and never crosses a network Selr controls.
-
-Secondary but real: a central app makes Selr's app ID the caller on every API request made by
-hundreds of unrelated businesses, so Selr inherits their rate-limit behaviour, their compliance
-posture, and a single point of failure — one app-level throttle or suspension takes the whole
-community offline at once.
+A central shared app would therefore require a hosted token-broker service — a full product with
+the security and liability posture of one, not a kit people clone. Camp B has no such problem: the
+installer's own app secret and token stay on the installer's own machine.
 
 ---
 

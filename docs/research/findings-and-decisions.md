@@ -129,28 +129,9 @@ A rumoured per-account rollout flag. **Appears nowhere in Meta's docs**; Meta do
 
 ---
 
-## 6. Existing Selr Meta estate
+## 6. Prior art
 
-Nine distinct products found across one org (`selrai-company`) and four personal owners.
-
-| Repo / path | What it is | Disposition |
-|---|---|---|
-| `luke-heka/meta-ads-connector` | **This kit.** | Build |
-| `Mr-heka/meta-ads-mcp-setup` (public) | Current connector skill, official-MCP path, 3 files. Claims "no dev app needed" — accidentally correct, but for the wrong reason. | Supersede |
-| a teammate's `meta-ads-mcp-setup` | Zero-divergence fork | Delete or stub |
-| `luke-heka/meta-ads-mcp-setup` | Old pipeboard version. **Repo gone**, still in kit index. | Purge from index |
-| `Mr-heka/meta-ads-dashboard` (public) | Next.js + Supabase, verdict engine, approval queue. Most substantial Meta product owned. Unindexed. | Finished — not in scope |
-| `selrai-company/business-operating-strategy` | BOS `/ads` page, origin of the dashboard, shares `meta-audit-sync.ts` | Live — leave alone |
-| a teammate's `marketing-agency-workshop` | Module 3 holds the **Playwright system-user minting code to reuse** (`platforms/meta/playwright/03-system-user.spec.ts`). Wires pipeboard. | Mine for code; rewire later |
-| `selrai-company/claude-workshop-kit` | `managed-agents-setup` (pipeboard wiring), `meta-business-suite-connector` (IG/organic, not ads), `paid-ads` (**false claim of direct account access**) | Two small fixes |
-| `selrai-company/printing-press-cli-experiments` | `pp-facebook` Go CLI | Dropped |
-| Deck'd Out platform | Client lead-ads production | Untouched |
-
-Practitioner "brain" skills, `ad-claims-audit`, and the WorldGym connector (whose `meta_ads_campaign_performance` returns **mock data with the real call commented out**) have no live Meta connection.
-
-**Deprecation blast radius:** nine reference sites, notably three copies of the pipeboard wiring (`connect-meta-ads.sh`, `mcp-bridge.json`, plus a verbatim duplicate of the marketing-agency skill vendored into `pt-industry-pack-workshop`), the contradictory knowledge note, and ~10 kit-index YAMLs.
-
-> **Method caveat:** `gh search code` is badly under-indexed for these orgs — it missed `graph.facebook.com` in a public repo. Its silence proves nothing. Repo-tree walks and local content greps are the reliable signal.
+Earlier internal Meta-ads tooling was inventoried before this build; this kit supersedes the prior connector skill, and everything else found is either being retired or is out of scope here.
 
 ---
 
@@ -185,7 +166,7 @@ Practitioner "brain" skills, `ad-claims-audit`, and the WorldGym connector (whos
 
 **Testing:** a doctor/verify script (Python version, CLI install, token validity, MCP registration) plus one full live run-through.
 
-**Also in scope today, small:** fix `selrai-internal-kit/knowledge/infrastructure/meta-ads.md` (asserts the official MCP "DOES NOT WORK"), and fix `paid-ads`'s false claim of direct ad-account access. Both actively misroute Claude.
+**Also in scope today, small:** correct two stale internal notes that misroute Claude — one wrongly asserts the official MCP "DOES NOT WORK", the other falsely claims direct ad-account access.
 
 **Parked:** pack rework · wider pipeboard deprecation (`marketing-agency-workshop`, `managed-agents-setup`) · kit-index entries · Meta-ads knowledge layer · the dashboard · Skool announcement wording.
 
