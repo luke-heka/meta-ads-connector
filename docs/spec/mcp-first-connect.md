@@ -1,10 +1,10 @@
 # Spec — MCP-first connect: one paste-in prompt, then `/meta-ads-connect`
 
-Tracker: **DP-3**. Supersedes the MCP-registration sections of
+Supersedes the MCP-registration sections of
 [`meta-ads-connect.md`](meta-ads-connect.md), which specced the MCP as step four of a
 five-step CLI setup. Everything else in that spec still stands.
 
-Blocks: **DP-4** (Ads CLI token acquisition). Nothing here depends on DP-4 resolving.
+Ads CLI token acquisition is tracked separately. Nothing here depends on it resolving.
 
 ## Problem Statement
 
@@ -31,10 +31,10 @@ works:
 
 - The **CLI path** needs a minted system user token. Token acquisition is unresolved and
   turns out to be a much larger problem than it looked — device checks, approval gates and
-  Business Settings automation that fails silently (DP-4).
+  Business Settings automation that fails silently.
 - The **MCP path** needs no token at all. It authenticates through Claude Code's own OAuth
   flow the first time it is used. No system user, no Business Settings, no minting, none of
-  the gates blocking DP-4.
+  the gates blocking CLI token acquisition.
 
 The net effect is that the path that works is gated behind three steps of the path that
 doesn't. The user experiences this as: the kit tells me to do something that fails, and
@@ -424,7 +424,7 @@ before release, and it doubles as the capability inventory:
 
 ## Out of Scope
 
-- **Resolving Ads CLI token acquisition.** That is DP-4 and is deliberately independent. This
+- **Resolving Ads CLI token acquisition.** That is tracked separately and is deliberately independent. This
   spec must not wait on it and must not assume it.
 - **Removing the CLI path.** Demoted, not deleted. Existing users keep everything.
 - **Raw Graph API access, third-party MCP servers, and Ads Manager bulk CSV import.** All

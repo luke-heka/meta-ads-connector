@@ -307,9 +307,9 @@ create a paused campaign, upload an image creative, verify in Ads Manager, clean
 - **The Skool announcement.** Separate piece of work.
 
 Two small fixes sit outside this spec but block correct routing and should ship
-alongside it: `selrai-internal-kit/knowledge/infrastructure/meta-ads.md` wrongly asserts
-the official MCP does not work, and the `paid-ads` skill falsely claims direct
-ad-account access. Both actively misroute Claude today.
+alongside it: an internal knowledge note wrongly asserts the official MCP does not work,
+and the `paid-ads` skill falsely claims direct ad-account access. Both actively misroute
+Claude today.
 
 ## Further Notes
 

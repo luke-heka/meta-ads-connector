@@ -707,19 +707,17 @@ Release cadence, inferred from `facebook-business` SDK major bumps (Meta ships t
 ---
 ---
 
-# CORRECTION PASS 3 — 2026-07-28 (DCR question)
+# DCR question — 2026-07-28
 
-**This section CORRECTS the earlier claim "Dynamic client registration is CLOSED / you must supply your own Meta App ID" (§A above). That conclusion was a probing artifact.**
+This section supersedes the earlier "you must supply your own Meta App ID" claim (§A above), which was a probing artifact.
 
 ## VERDICT
 
 **App ID NOT required in Claude Desktop / claude.ai. NOT required in Claude Code CLI either, in principle — Meta's `--client-id` documentation is stale/defensive, and the CLI's real blocker is an Anthropic-side redirect_uri bug, not a Meta app requirement.**
 
-The maintainer's lived experience is correct. The earlier probe was wrong.
+## How registration actually works
 
-## Why the earlier probe was wrong
-
-Meta runs a **client_name-allowlisted pseudo-DCR**. `POST https://mcp.facebook.com/.well-known/register/ads` does not create a new app — it hands back a **pre-provisioned, first-party Meta app**, but only if the request's `client_name` is on Meta's allowlist. The earlier pass posted a generic client_name, got the generic rejection, and concluded DCR was closed for everyone.
+Meta runs a **client_name-allowlisted pseudo-DCR**. `POST https://mcp.facebook.com/.well-known/register/ads` does not create a new app — it hands back a **pre-provisioned, first-party Meta app**, but only if the request's `client_name` is on Meta's allowlist. A generic client_name gets a generic rejection, which is easy to misread as DCR being closed for everyone.
 
 Live probes, 2026-07-28 (all reproducible, run 3x):
 
@@ -780,7 +778,7 @@ The `Anthropic`-fails / `Claude`-passes split is worth noting as a fragility: th
 ## Also re-probed this pass (unchanged)
 
 - `/.well-known/oauth-protected-resource/ads` → 200, same 7 scopes as before.
-- `/.well-known/oauth-authorization-server/ads` → 200, and it **advertises** `"registration_endpoint":"https://mcp.facebook.com/.well-known/register/ads"`. An open registration_endpoint in the metadata is itself evidence Meta intends automatic client registration; the earlier pass treated the advertised endpoint as vestigial.
+- `/.well-known/oauth-authorization-server/ads` → 200, and it **advertises** `"registration_endpoint":"https://mcp.facebook.com/.well-known/register/ads"`. An open registration_endpoint in the metadata is itself evidence Meta intends automatic client registration.
 - Bare `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server` (no `/ads`) → 404 `{"title":"MCP server not found"}`. Path suffix is mandatory.
 - `POST /ads` unauthenticated → 401 with the same `WWW-Authenticate` resource_metadata + scope header.
 - The authorize dialog accepts the handed-back client_id: `GET https://www.facebook.com/v25.0/dialog/oauth?client_id=4510005499318155&redirect_uri=https%3A%2F%2Fclaude.ai%2F...` → 302 to `login.php` with `is_business_login=1`. A normal Facebook Login for Business consent, nothing app-owner-specific.
