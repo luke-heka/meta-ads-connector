@@ -123,7 +123,7 @@ def test_recognises_the_mcp_server_by_the_name_it_is_registered_under(
     runner.onPath("claude")
     runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} - ✔ Connected")
 
-    assert detectMcp(ctx).state is McpState.REGISTERED
+    assert detectMcp(ctx).state is McpState.CONNECTED
 
 
 def test_recognises_the_mcp_server_by_its_url_under_a_different_name(
@@ -133,7 +133,51 @@ def test_recognises_the_mcp_server_by_its_url_under_a_different_name(
     runner.onPath("claude")
     runner.respond(["claude", "mcp", "list"], stdout=f"my-ads: {MCP_URL} - ✔ Connected")
 
-    assert detectMcp(ctx).state is McpState.REGISTERED
+    assert detectMcp(ctx).state is McpState.CONNECTED
+
+
+def test_reads_the_waiting_for_login_state_from_the_listing(
+    ctx: Context, runner: FakeCommandRunner
+) -> None:
+    runner.onPath("claude")
+    runner.respond(
+        ["claude", "mcp", "list"],
+        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ⚠ Needs authentication · Use /mcp to authenticate",
+    )
+
+    status = detectMcp(ctx)
+
+    assert status.state is McpState.NEEDS_LOGIN
+    assert status.registered
+    assert not status.usable
+
+
+def test_reads_a_failing_connection_as_incomplete_not_missing(
+    ctx: Context, runner: FakeCommandRunner
+) -> None:
+    """Registered-but-broken must never read as absent — that is the
+    reconnect bug all over again."""
+    runner.onPath("claude")
+    runner.respond(
+        ["claude", "mcp", "list"],
+        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✗ Failed to connect",
+    )
+
+    status = detectMcp(ctx)
+
+    assert status.state is McpState.INCOMPLETE
+    assert status.registered
+
+
+def test_a_listed_server_with_no_health_marker_counts_as_connected(
+    ctx: Context, runner: FakeCommandRunner
+) -> None:
+    """Claude Code's wording is not ours to pin. An unrecognised health note
+    on a listed server defaults to connected rather than to a repair."""
+    runner.onPath("claude")
+    runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} (HTTP)")
+
+    assert detectMcp(ctx).state is McpState.CONNECTED
 
 
 def test_is_not_fooled_by_an_unrelated_server(

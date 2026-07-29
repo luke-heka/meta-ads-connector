@@ -20,7 +20,9 @@ from .conftest import (
     FakeCommandRunner,
     FakeGraphClient,
     Recorder,
+    incompleteMcp,
     installedCli,
+    needsLoginMcp,
     registeredMcp,
     unregisteredMcp,
 )
@@ -68,11 +70,25 @@ def test_names_the_connected_ad_accounts(
     assert "Second Account (act_222)" in out.text
 
 
-def test_a_missing_cli_fails_only_that_component(
+def test_a_missing_cli_is_optional_when_the_mcp_is_connected(
     ctx: Context, runner: FakeCommandRunner, graph: FakeGraphClient, paths: Paths, out: Recorder
 ) -> None:
+    """The CLI is an optional enhancement. With the MCP transport live, its
+    absence must not read as a broken setup."""
     _healthy(runner, graph, paths)
     paths.cli_binary.unlink()
+
+    assert runDoctor(ctx) == Exit.OK
+    assert "optional" in out.text
+    assert "✗" not in out.text
+
+
+def test_a_missing_cli_fails_when_the_mcp_is_missing_too(
+    ctx: Context, runner: FakeCommandRunner, out: Recorder
+) -> None:
+    runner.onPath("python3.13", "/opt/homebrew/bin/python3.13")
+    runner.respond(["python3.13", "--version"], stdout="Python 3.13.2")
+    unregisteredMcp(runner)
 
     assert runDoctor(ctx) == Exit.NOT_INSTALLED
     assert "✗ Meta Ads CLI — Not installed." in out.text
@@ -115,7 +131,7 @@ def test_an_unregistered_mcp_server_fails_only_that_component(
 
     assert runDoctor(ctx) == Exit.MCP_MISSING
     assert "✗ Meta Ads MCP server" in out.text
-    assert "everything else does not" in out.text
+    assert "primary" in out.text
 
 
 def test_a_wrong_cli_version_warns_without_blocking(
@@ -187,15 +203,57 @@ def test_a_token_with_no_ad_accounts_points_at_repair(
 def test_several_components_can_fail_at_once(
     ctx: Context, runner: FakeCommandRunner, out: Recorder
 ) -> None:
-    """CLI, token and MCP server all missing. Each is listed; the exit code
-    carries the first one, so a caller has somewhere to start."""
+    """CLI and MCP server both missing. Each is listed; the exit code carries
+    the first one, so a caller has somewhere to start. The token is a CLI-path
+    credential, so with no CLI installed there is no token line to fail."""
     runner.onPath("python3.13", "/opt/homebrew/bin/python3.13")
     runner.respond(["python3.13", "--version"], stdout="Python 3.13.2")
     unregisteredMcp(runner)
 
     assert runDoctor(ctx) == Exit.NOT_INSTALLED
-    assert out.text.count("✗") >= 3
+    assert out.text.count("✗") == 2
+    assert "Access token" not in out.text
     assert "need attention" in out.text
+
+
+def test_an_mcp_only_machine_with_no_python_is_healthy(
+    ctx: Context, runner: FakeCommandRunner, out: Recorder
+) -> None:
+    """MCP connected; no CLI, no token, no usable Python anywhere. That
+    machine is fully working and must be told so — a language runtime is not
+    a prerequisite for talking about your ads."""
+    registeredMcp(runner)
+
+    assert runDoctor(ctx) == Exit.OK
+    assert "✗" not in out.text
+    assert "Everything is working" in out.text
+    assert "mint-token" not in out.text
+
+
+def test_an_mcp_awaiting_login_names_the_login_as_the_next_action(
+    ctx: Context, runner: FakeCommandRunner, out: Recorder
+) -> None:
+    runner.onPath("python3.13", "/opt/homebrew/bin/python3.13")
+    runner.respond(["python3.13", "--version"], stdout="Python 3.13.2")
+    needsLoginMcp(runner)
+
+    result = runDoctor(ctx)
+
+    assert "log in" in out.text.lower()
+    assert result != Exit.OK
+
+
+def test_an_incomplete_mcp_grant_asks_for_re_consent(
+    ctx: Context, runner: FakeCommandRunner, graph: FakeGraphClient, paths: Paths, out: Recorder
+) -> None:
+    """A completed login whose connection does not work is fixed by
+    re-consenting, never by reinstalling anything."""
+    _healthy(runner, graph, paths)
+    incompleteMcp(runner)
+
+    assert runDoctor(ctx) == Exit.MCP_INCOMPLETE
+    assert "log in again" in out.text.lower()
+    assert "meta-ads-connect install" not in out.text.split("Meta Ads MCP server")[-1]
 
 
 def test_windows_stops_at_the_platform_rather_than_listing_everything_else(

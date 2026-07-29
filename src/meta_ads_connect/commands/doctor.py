@@ -14,11 +14,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from ..components import TOKEN_VERDICTS, McpState, TokenState, checkToken, detectCli, detectMcp
+from ..components import (
+    TOKEN_VERDICTS,
+    CliStatus,
+    McpState,
+    McpStatus,
+    TokenState,
+    checkToken,
+    detectCli,
+    detectMcp,
+)
 from ..config import CLI_VERSION, MCP_URL, RECHECK_DATE, SUPPORTED_PYTHONS
 from ..context import Context
 from ..exits import Exit
 from ..interpreter import resolveInterpreter
+from ..messages import MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
 from ..state import recordedInterpreter
 from ..tokens import DIR_MODE, FILE_MODE, directoryMode, formatMode, readToken, tokenFileMode
 
@@ -74,18 +84,26 @@ def collectChecks(ctx: Context) -> list[Check]:
         # Nothing below can succeed on a platform with no build at all.
         return checks
 
-    checks.append(_interpreterCheck(ctx))
-    cli = _cliCheck(ctx)
-    checks.append(cli)
+    mcp = detectMcp(ctx)
+    cli = detectCli(ctx)
+    # With the MCP transport live and no CLI installed, the whole CLI path —
+    # interpreter, binary, token — is an optional extra. Reporting any of it
+    # as a failure would tell a fully connected owner they are broken.
+    cli_path_optional = mcp.state is McpState.CONNECTED and not cli.installed
 
-    token = readToken(ctx.paths)
-    ctx.secret = token
-    checks.append(_tokenFileCheck(ctx, token))
+    checks.append(_interpreterCheck(ctx, optional=cli_path_optional))
+    checks.append(_cliCheck(cli, optional=cli_path_optional))
 
-    if token is not None:
-        checks.extend(_tokenLiveChecks(ctx, token))
+    # The token belongs to the CLI path; with no CLI there is no token to be
+    # missing, so the token lines only appear once the CLI is installed.
+    if cli.installed:
+        token = readToken(ctx.paths)
+        ctx.secret = token
+        checks.append(_tokenFileCheck(ctx, token))
+        if token is not None:
+            checks.extend(_tokenLiveChecks(ctx, token))
 
-    checks.append(_mcpCheck(ctx))
+    checks.append(_mcpCheck(mcp))
     return checks
 
 
@@ -104,10 +122,19 @@ def _platformCheck(ctx: Context) -> Check:
     return Check(name="Operating system", health=Health.OK, detail=f"{ctx.platform}, supported.")
 
 
-def _interpreterCheck(ctx: Context) -> Check:
+def _interpreterCheck(ctx: Context, *, optional: bool = False) -> Check:
     resolution = resolveInterpreter(ctx.runner, recorded=recordedInterpreter(ctx.paths))
     if resolution.chosen is None:
         wanted = " or ".join(f"{major}.{minor}" for major, minor in SUPPORTED_PYTHONS)
+        if optional:
+            return Check(
+                name="Python",
+                health=Health.OK,
+                detail=(
+                    "No usable Python found — which is fine: your MCP connection needs "
+                    f"no Python. Only the optional CLI path would need {wanted}."
+                ),
+            )
         return Check(
             name="Python",
             health=Health.FAIL,
@@ -139,14 +166,25 @@ def _interpreterCheck(ctx: Context) -> Check:
     )
 
 
-def _cliCheck(ctx: Context) -> Check:
-    cli = detectCli(ctx)
+def _cliCheck(cli: CliStatus, *, optional: bool = False) -> Check:
     if not cli.installed:
+        if optional:
+            return Check(
+                name="Meta Ads CLI",
+                health=Health.OK,
+                detail=(
+                    "Not installed — optional. Ads work runs through Meta's MCP server; "
+                    "run `meta-ads-connect install` only if you want the CLI path too."
+                ),
+            )
         return Check(
             name="Meta Ads CLI",
             health=Health.FAIL,
             detail="Not installed.",
-            next_action="Run `meta-ads-connect install`.",
+            next_action=(
+                "Optional — the primary connection is Meta's MCP server, below. "
+                "To add the CLI path, run `meta-ads-connect install`."
+            ),
             exit_code=Exit.NOT_INSTALLED,
         )
     if cli.pinned:
@@ -232,15 +270,30 @@ def _tokenLiveChecks(ctx: Context, token: str) -> list[Check]:
     return [accepted, Check(name="Ad accounts", health=Health.OK, detail=listed)]
 
 
-def _mcpCheck(ctx: Context) -> Check:
-    mcp = detectMcp(ctx)
-    if mcp.state is McpState.REGISTERED:
+def _mcpCheck(mcp: McpStatus) -> Check:
+    if mcp.state is McpState.CONNECTED:
         return Check(name="Meta Ads MCP server", health=Health.OK, detail=mcp.detail)
+    if mcp.state is McpState.NEEDS_LOGIN:
+        return Check(
+            name="Meta Ads MCP server",
+            health=Health.FAIL,
+            detail=mcp.detail,
+            next_action=MCP_LOGIN_ACTION,
+            exit_code=Exit.MCP_NEEDS_LOGIN,
+        )
+    if mcp.state is McpState.INCOMPLETE:
+        return Check(
+            name="Meta Ads MCP server",
+            health=Health.FAIL,
+            detail=mcp.detail + " The approval may not cover everything the kit needs.",
+            next_action=MCP_RECONSENT_ACTION,
+            exit_code=Exit.MCP_INCOMPLETE,
+        )
     if mcp.state is McpState.MISSING:
         return Check(
             name="Meta Ads MCP server",
             health=Health.FAIL,
-            detail=mcp.detail + " Audiences and Meta's benchmark data need it; everything else does not.",
+            detail=mcp.detail + " It is the primary way Claude manages your ads.",
             next_action="Run `meta-ads-connect register-mcp`.",
             exit_code=Exit.MCP_MISSING,
         )

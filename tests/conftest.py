@@ -256,8 +256,28 @@ def installedCli(runner: FakeCommandRunner, paths: Paths, *, version: str = CLI_
 
 
 def registeredMcp(runner: FakeCommandRunner) -> None:
+    """Registered, consented, and working — the healthy MCP transport."""
     runner.onPath("claude")
     runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✓ Connected")
+
+
+def needsLoginMcp(runner: FakeCommandRunner) -> None:
+    """Registered but the OAuth flow has never been completed."""
+    runner.onPath("claude")
+    runner.respond(
+        ["claude", "mcp", "list"],
+        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ⚠ Needs authentication · Use /mcp to authenticate",
+    )
+
+
+def incompleteMcp(runner: FakeCommandRunner) -> None:
+    """Consent completed at some point, but the connection does not work —
+    the grant may not cover what the kit needs."""
+    runner.onPath("claude")
+    runner.respond(
+        ["claude", "mcp", "list"],
+        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✗ Failed to connect",
+    )
 
 
 def unregisteredMcp(runner: FakeCommandRunner) -> None:

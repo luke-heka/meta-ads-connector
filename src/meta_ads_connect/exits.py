@@ -55,5 +55,13 @@ class Exit(IntEnum):
     #: create one, because it carries their billing details.
     NEEDS_AD_ACCOUNT = 17
 
+    # --- probe: MCP transport states, added by the MCP-first spec ----------
+    #: The MCP server is registered but the Meta login has never been
+    #: completed. The action is "log in", not a reinstall.
+    MCP_NEEDS_LOGIN = 18
+    #: The login completed but the connection does not work — the grant may
+    #: not cover what the kit needs. The action is re-consent, not a reinstall.
+    MCP_INCOMPLETE = 19
+
     #: Bad arguments or an unexpected internal failure.
     USAGE = 64
