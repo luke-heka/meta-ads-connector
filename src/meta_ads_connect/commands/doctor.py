@@ -24,13 +24,21 @@ from ..components import (
     detectCli,
     detectMcp,
 )
-from ..config import CLI_VERSION, MCP_URL, RECHECK_DATE, SUPPORTED_PYTHONS
+from ..config import CLI_VERSION, RECHECK_DATE, SUPPORTED_PYTHONS
 from ..context import Context
 from ..exits import Exit
 from ..interpreter import resolveInterpreter
-from ..messages import MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
+from ..messages import CLAUDE_UNREACHABLE_ACTION, MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
 from ..state import recordedInterpreter
-from ..tokens import DIR_MODE, FILE_MODE, directoryMode, formatMode, readToken, tokenFileMode
+from ..tokens import (
+    DIR_MODE,
+    FILE_MODE,
+    directoryMode,
+    formatMode,
+    readToken,
+    redact,
+    tokenFileMode,
+)
 
 
 class Health(Enum):
@@ -67,6 +75,12 @@ def runDoctor(ctx: Context) -> int:
     ctx.say("")
     if failures:
         ctx.say(f"{len(failures)} thing{'s' if len(failures) != 1 else ''} need attention, listed above.")
+        bundle = _writeDiagnosticBundle(ctx, checks)
+        if bundle is not None:
+            ctx.say(
+                f"If you get stuck, paste the contents of {bundle} when asking for help — "
+                "it holds this report and nothing secret."
+            )
         return int(failures[0].exit_code)
 
     warnings = [check for check in checks if check.health is Health.WARN]
@@ -301,8 +315,33 @@ def _mcpCheck(mcp: McpStatus) -> Check:
         name="Meta Ads MCP server",
         health=Health.WARN,
         detail=mcp.detail,
-        next_action=(
-            "If you use Claude in the desktop app, add it there instead: "
-            f"Settings → Connectors → Add custom connector → {MCP_URL}"
-        ),
+        next_action=CLAUDE_UNREACHABLE_ACTION,
     )
+
+
+def _writeDiagnosticBundle(ctx: Context, checks: list[Check]) -> str | None:
+    """The redacted report, on disk, so a stuck member has one concrete thing
+    to paste when asking for help instead of describing symptoms from memory.
+
+    Redacted twice over: every detail already avoids the token by
+    construction, and the whole text goes through :func:`redact` anyway,
+    because this file is written to be shared.
+    """
+    lines = [
+        "meta-ads-connect diagnostic bundle",
+        f"platform: {ctx.platform}",
+        "",
+    ]
+    for check in checks:
+        lines.append(f"{check.health.symbol} {check.name} — {check.detail}")
+        if check.next_action:
+            lines.append(f"    next: {check.next_action}")
+    text = redact("\n".join(lines) + "\n", token=ctx.secret)
+    try:
+        ctx.paths.root.mkdir(mode=DIR_MODE, parents=True, exist_ok=True)
+        ctx.paths.diagnostic_file.write_text(text, encoding="utf-8")
+    except OSError:
+        # The bundle is a courtesy; failing to write it must not turn a
+        # diagnosis into a new failure.
+        return None
+    return str(ctx.paths.diagnostic_file)

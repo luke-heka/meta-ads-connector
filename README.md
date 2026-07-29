@@ -25,7 +25,7 @@ later is also how you update.
 ```text
 Install the Meta Ads connector kit on this machine. Follow these steps exactly, in order, and do nothing beyond them.
 
-1. Check that you are running as Claude Code with access to a terminal and a ~/.claude/skills folder. If you are not — for example this is the Claude desktop or web app — stop here and tell me to open Claude Code and paste this prompt there. If I only use the desktop app, tell me to instead add the connector under Settings → Connectors → Add custom connector, using the URL https://mcp.facebook.com/ads
+1. Check that you are running as Claude Code with access to a terminal and a ~/.claude/skills folder. Claude Code in the terminal and Claude Code inside the desktop app both count — the desktop app has a terminal and skills too. Only stop if you truly have no terminal — for example this is claude.ai in a web browser — and in that case tell me to open Claude Code (terminal or desktop app) and paste this prompt there.
 2. Check that git is available. If it is not, stop and tell me the one thing to install (git), with the easiest way to get it on my operating system.
 3. Clone https://github.com/lukeselr/meta-ads-connector into ~/meta-ads-connector. If that folder already exists, run git pull inside it instead of cloning a second copy.
 4. Create ~/.claude/skills if it does not exist, then copy ~/meta-ads-connector/skills/meta-ads-connect into ~/.claude/skills/, replacing any earlier copy.
@@ -69,9 +69,7 @@ anything that changes spend or sets an ad live.
 ## Requirements
 
 - A Meta ad account
-- Claude Code, in the terminal. (Claude Desktop users can add the connector
-  directly instead: Settings → Connectors → Add custom connector →
-  `https://mcp.facebook.com/ads` — no install needed.)
+- Claude Code — the terminal and the desktop app both work.
 - That's it. Python is only needed if you later add the optional CLI path.
 
 ## The optional CLI path
@@ -88,7 +86,8 @@ You never need to run these yourself — Claude does — but each one is safe to
 | --- | --- |
 | `meta-ads-connect probe` | Live connection check, one line per transport. Always the first thing to run. |
 | `meta-ads-connect doctor` | Checks each part separately and says what to fix. |
-| `meta-ads-connect register-mcp` | Registers Meta's official Ads MCP server (the primary connection). |
+| `meta-ads-connect register-mcp` | Registers Meta's official Ads MCP server (the primary connection), for all your projects. |
+| `meta-ads-connect login` | Completes the one-time Meta login — opens the browser approval and verifies the result. |
 | `meta-ads-connect install` | Installs Meta's official Ads CLI at a pinned version. |
 | `meta-ads-connect mint-token` | Opens a browser, creates a token, saves it straight to disk. |
 | `meta-ads-connect store-token` | Stores a token you already have, read from standard input. |

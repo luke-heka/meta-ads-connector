@@ -115,10 +115,23 @@ class McpState(Enum):
     UNKNOWN = "unknown"
 
 
+class McpScope(Enum):
+    """Where the registration lives. LOCAL is the stranding bug this kit once
+    shipped: the server exists only in the folder setup happened to run in."""
+
+    USER = "user"
+    LOCAL = "local"
+    PROJECT = "project"
+    #: Registration was read but no scope line was recognised — or the server
+    #: was found by URL under someone else's name. Never a verdict.
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class McpStatus:
     state: McpState
     detail: str
+    scope: McpScope = McpScope.UNKNOWN
 
     @property
     def registered(self) -> bool:
@@ -131,34 +144,70 @@ class McpStatus:
 
 
 def detectMcp(ctx: Context) -> McpStatus:
+    """Registration, health and scope, from one `claude mcp get` call.
+
+    One call answers everything, so probe and doctor can never disagree about
+    what is wrong. An absent server exits non-zero with "No MCP server named";
+    any other failure is UNKNOWN — the `claude` CLI being absent or broken is
+    never a verdict about the connection.
+    """
     try:
-        result = ctx.runner.run(["claude", "mcp", "list"], timeout=60)
+        result = ctx.runner.run(["claude", "mcp", "get", MCP_NAME], timeout=60)
     except CommandNotFound:
         return McpStatus(
             state=McpState.UNKNOWN,
             detail="The `claude` command is not on your PATH, so MCP registration cannot be checked.",
         )
-    if not result.ok:
-        return McpStatus(
-            state=McpState.UNKNOWN,
-            detail="Claude Code could not list its MCP servers.",
-        )
+    if result.ok:
+        return _classifyGetOutput(result.output)
+    if "no mcp server" in result.output.lower():
+        return _detectByUrl(ctx)
+    return McpStatus(
+        state=McpState.UNKNOWN,
+        detail="Claude Code could not report on its MCP servers.",
+    )
 
-    line = _serverLine(result.output)
-    if line is None:
+
+def _detectByUrl(ctx: Context) -> McpStatus:
+    """Nothing under our name — but the owner may have registered the same
+    server under a name of their own, and that must not read as absent."""
+    try:
+        result = ctx.runner.run(["claude", "mcp", "list"], timeout=60)
+    except CommandNotFound:  # pragma: no cover - `get` above already ran
         return McpStatus(state=McpState.MISSING, detail="Meta's Ads MCP server is not registered.")
-    return _classifyServerLine(line)
+    if result.ok:
+        for line in result.output.splitlines():
+            if MCP_URL in line:
+                return _classifyHealth(line)
+    return McpStatus(state=McpState.MISSING, detail="Meta's Ads MCP server is not registered.")
 
 
-def _serverLine(listing: str) -> str | None:
-    for line in listing.splitlines():
-        if MCP_URL in line or re.match(rf"\s*{re.escape(MCP_NAME)}\b", line):
-            return line
-    return None
+def _classifyGetOutput(output: str) -> McpStatus:
+    scope = _parseScope(output)
+    status_lines = [line for line in output.splitlines() if "status:" in line.lower()]
+    health = _classifyHealth(status_lines[0] if status_lines else output)
+    return McpStatus(state=health.state, detail=health.detail, scope=scope)
 
 
-def _classifyServerLine(line: str) -> McpStatus:
-    """Read the health `claude mcp list` reports next to the server.
+def _parseScope(output: str) -> McpScope:
+    for line in output.splitlines():
+        if "scope:" not in line.lower():
+            continue
+        lowered = line.lower()
+        # Order matters: Claude Code's user and local wordings both mention
+        # "project" in their parenthetical, so "project" is checked last.
+        if "local" in lowered:
+            return McpScope.LOCAL
+        if "user" in lowered:
+            return McpScope.USER
+        if "project" in lowered:
+            return McpScope.PROJECT
+        break
+    return McpScope.UNKNOWN
+
+
+def _classifyHealth(line: str) -> McpStatus:
+    """Read the health Claude Code reports for the server.
 
     The exact wording is Claude Code's, not ours, so this matches loosely and
     defaults to CONNECTED when the line carries no recognisable health marker —

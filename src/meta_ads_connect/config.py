@@ -103,6 +103,11 @@ class Paths:
         """Records the resolved interpreter so later runs need not re-resolve."""
         return self.root / "state.json"
 
+    @property
+    def diagnostic_file(self) -> Path:
+        """Where ``doctor`` writes its redacted help bundle. Safe to share."""
+        return self.root / "diagnostic.txt"
+
 
 def defaultPaths(environ: dict[str, str] | None = None) -> Paths:
     env = os.environ if environ is None else environ

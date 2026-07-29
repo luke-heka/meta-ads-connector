@@ -35,7 +35,9 @@ class FakeCommandRunner:
     def __init__(self) -> None:
         self._path: dict[str, str] = {}
         self._rules: list[tuple[tuple[str, ...], Responder]] = []
+        self._pty_rules: list[tuple[tuple[str, ...], Responder]] = []
         self.calls: list[tuple[str, ...]] = []
+        self.pty_calls: list[tuple[str, ...]] = []
         #: Environment each call was given, so a test can assert the token was
         #: passed per invocation rather than left somewhere persistent.
         self.environments: list[dict[str, str]] = []
@@ -71,6 +73,25 @@ class FakeCommandRunner:
         self._rules.append((tuple(match), responder))
         return self
 
+    def respondPty(
+        self,
+        match: Sequence[str],
+        *,
+        stdout: str = "",
+        returncode: int = 0,
+    ) -> "FakeCommandRunner":
+        """Answer a pty-backed run. A pty has one stream, so there is no stderr."""
+
+        def responder(argv: Sequence[str]) -> CommandResult:
+            return CommandResult(argv=tuple(argv), returncode=returncode, stdout=stdout, stderr="")
+
+        self._pty_rules.append((tuple(match), responder))
+        return self
+
+    def sideEffectPty(self, match: Sequence[str], responder: Responder) -> "FakeCommandRunner":
+        self._pty_rules.append((tuple(match), responder))
+        return self
+
     # --- CommandRunner protocol ------------------------------------------
 
     def which(self, program: str) -> str | None:
@@ -90,6 +111,22 @@ class FakeCommandRunner:
         # does, so a test can override a shared setup helper.
         best: tuple[int, Responder] | None = None
         for match, responder in self._rules:
+            if _matches(match, argv) and (best is None or len(match) >= best[0]):
+                best = (len(match), responder)
+        if best is None:
+            raise CommandNotFound(argv[0])
+        return best[1](argv)
+
+    def runPty(
+        self,
+        argv: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> CommandResult:
+        argv = list(argv)
+        self.pty_calls.append(tuple(argv))
+        best: tuple[int, Responder] | None = None
+        for match, responder in self._pty_rules:
             if _matches(match, argv) and (best is None or len(match) >= best[0]):
                 best = (len(match), responder)
         if best is None:
@@ -255,31 +292,50 @@ def installedCli(runner: FakeCommandRunner, paths: Paths, *, version: str = CLI_
     runner.respond(["meta", "--version"], stdout=f"meta-ads {version}")
 
 
-def registeredMcp(runner: FakeCommandRunner) -> None:
-    """Registered, consented, and working — the healthy MCP transport."""
-    runner.onPath("claude")
-    runner.respond(["claude", "mcp", "list"], stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✓ Connected")
+USER_SCOPE_LINE = "User config (available in all your projects)"
+LOCAL_SCOPE_LINE = "Local config (private to you in this project)"
 
 
-def needsLoginMcp(runner: FakeCommandRunner) -> None:
-    """Registered but the OAuth flow has never been completed."""
-    runner.onPath("claude")
-    runner.respond(
-        ["claude", "mcp", "list"],
-        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ⚠ Needs authentication · Use /mcp to authenticate",
+def mcpGetOutput(status: str, *, scope: str = USER_SCOPE_LINE) -> str:
+    """What `claude mcp get meta-ads` prints for a registered server."""
+    return (
+        f"{MCP_NAME}:\n"
+        f"  Scope: {scope}\n"
+        f"  Status: {status}\n"
+        "  Type: http\n"
+        f"  URL: {MCP_URL}\n"
     )
 
 
-def incompleteMcp(runner: FakeCommandRunner) -> None:
+def registeredMcp(runner: FakeCommandRunner, *, scope: str = USER_SCOPE_LINE) -> None:
+    """Registered, consented, and working — the healthy MCP transport."""
+    runner.onPath("claude")
+    runner.respond(["claude", "mcp", "get", MCP_NAME], stdout=mcpGetOutput("✓ Connected", scope=scope))
+
+
+def needsLoginMcp(runner: FakeCommandRunner, *, scope: str = USER_SCOPE_LINE) -> None:
+    """Registered but the OAuth flow has never been completed."""
+    runner.onPath("claude")
+    runner.respond(
+        ["claude", "mcp", "get", MCP_NAME],
+        stdout=mcpGetOutput("⚠ Needs authentication", scope=scope),
+    )
+
+
+def incompleteMcp(runner: FakeCommandRunner, *, scope: str = USER_SCOPE_LINE) -> None:
     """Consent completed at some point, but the connection does not work —
     the grant may not cover what the kit needs."""
     runner.onPath("claude")
     runner.respond(
-        ["claude", "mcp", "list"],
-        stdout=f"{MCP_NAME}: {MCP_URL} (HTTP) - ✗ Failed to connect",
+        ["claude", "mcp", "get", MCP_NAME],
+        stdout=mcpGetOutput("✗ Failed to connect", scope=scope),
     )
 
 
 def unregisteredMcp(runner: FakeCommandRunner) -> None:
     runner.onPath("claude")
+    runner.fails(
+        ["claude", "mcp", "get", MCP_NAME],
+        stderr=f'No MCP server named "{MCP_NAME}" found.',
+    )
     runner.respond(["claude", "mcp", "list"], stdout="No MCP servers configured.")

@@ -36,7 +36,7 @@ from ..components import (
 from ..config import CLI_VERSION, MCP_NAME, MCP_URL
 from ..context import Context
 from ..exits import Exit
-from ..messages import MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
+from ..messages import CLAUDE_UNREACHABLE_ACTION, MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
 from ..tokens import readToken
 
 
@@ -278,20 +278,17 @@ def _mcpOnlyCascade(cli: CliStatus, mcp: McpStatus) -> ProbeResult:
             token=None,
         )
 
-    desktop_hint = ""
+    unreachable_hint = ""
     if mcp.state is McpState.UNKNOWN:
-        desktop_hint = (
-            " If you use Claude in the desktop app instead, add the connector there: "
-            f"Settings → Connectors → Add custom connector → {MCP_URL}."
-        )
+        unreachable_hint = f" {CLAUDE_UNREACHABLE_ACTION}"
     return ProbeResult(
         exit_code=Exit.NOT_INSTALLED,
         verdict="Meta Ads is not set up on this machine yet.",
         next_action=(
             "Register Meta's Ads MCP server: run `meta-ads-connect register-mcp`, or if "
             "that command is not available, run "
-            f"`claude mcp add --transport http {MCP_NAME} {MCP_URL}`. "
-            "No token and no Python are needed." + desktop_hint
+            f"`claude mcp add --transport http --scope user {MCP_NAME} {MCP_URL}`. "
+            "No token and no Python are needed." + unreachable_hint
         ),
         cli=cli,
         mcp=mcp,

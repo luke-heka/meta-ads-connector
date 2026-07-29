@@ -334,3 +334,54 @@ def test_says_why_a_different_python_was_chosen(
     assert "3.14" in out.text
     assert "no build for" in out.text
     assert "leaves the rest alone" in out.text
+
+
+# --- the diagnostic bundle ---------------------------------------------------
+
+
+def test_a_failing_doctor_writes_a_shareable_diagnostic_bundle(
+    ctx: Context, runner: FakeCommandRunner, graph: FakeGraphClient, paths: Paths, out: Recorder
+) -> None:
+    """A stuck member needs one concrete thing to paste when asking for help,
+    not symptoms recalled from memory."""
+    _healthy(runner, graph, paths)
+    unregisteredMcp(runner)
+
+    runDoctor(ctx)
+
+    assert paths.diagnostic_file.exists()
+    bundle = paths.diagnostic_file.read_text(encoding="utf-8")
+    assert "Meta Ads MCP server" in bundle
+    assert str(paths.diagnostic_file) in out.text
+    assert "help" in out.text
+
+
+def test_the_diagnostic_bundle_contains_no_token(
+    ctx: Context, runner: FakeCommandRunner, graph: FakeGraphClient, paths: Paths
+) -> None:
+    """The bundle is written to be pasted into a public community post, so a
+    credential in it would be an immediate leak."""
+    runner.onPath("python3.13", "/opt/homebrew/bin/python3.13")
+    runner.respond(["python3.13", "--version"], stdout="Python 3.13.2")
+    installedCli(runner, paths)
+    registeredMcp(runner)
+    writeToken(paths, VALID_TOKEN)
+    graph.onGet(
+        "/me/adaccounts",
+        GraphAuthError(f"Session invalidated for token {VALID_TOKEN}", code=190),
+    )
+
+    runDoctor(ctx)
+
+    assert paths.diagnostic_file.exists()
+    assert VALID_TOKEN not in paths.diagnostic_file.read_text(encoding="utf-8")
+
+
+def test_a_healthy_doctor_writes_no_bundle(
+    ctx: Context, runner: FakeCommandRunner, graph: FakeGraphClient, paths: Paths
+) -> None:
+    _healthy(runner, graph, paths)
+
+    runDoctor(ctx)
+
+    assert not paths.diagnostic_file.exists()
