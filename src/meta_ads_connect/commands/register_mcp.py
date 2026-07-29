@@ -19,6 +19,7 @@ from ..components import McpState, detectMcp
 from ..config import MCP_NAME, MCP_URL
 from ..context import Context
 from ..exits import Exit
+from ..messages import MCP_LOGIN_ACTION, MCP_RECONSENT_ACTION
 from ..processes import CommandNotFound
 
 #: Substrings that identify the Claude Code redirect_uri regression in whatever
@@ -28,9 +29,23 @@ _REDIRECT_URI_MARKERS = ("redirect_uri", "redirect uri", "are not registered for
 
 def runRegisterMcp(ctx: Context, *, app_id: str | None = None) -> int:
     existing = detectMcp(ctx)
-    if existing.state is McpState.REGISTERED:
+    if existing.state is McpState.CONNECTED:
         ctx.say(f"Meta's Ads MCP server is already registered as `{MCP_NAME}`. Nothing to do.")
         return int(Exit.OK)
+    if existing.state is McpState.NEEDS_LOGIN:
+        ctx.say(
+            f"Meta's Ads MCP server is already registered as `{MCP_NAME}` — one step left: "
+            "log in to Meta."
+        )
+        ctx.say(f"Next: {MCP_LOGIN_ACTION}")
+        return int(Exit.OK)
+    if existing.state is McpState.INCOMPLETE:
+        ctx.warn(
+            f"Meta's Ads MCP server is already registered as `{MCP_NAME}`, but its "
+            "connection is not working — the approval may not cover everything the kit needs."
+        )
+        ctx.warn(f"Next: {MCP_RECONSENT_ACTION}")
+        return int(Exit.MCP_INCOMPLETE)
     if existing.state is McpState.UNKNOWN:
         ctx.warn(existing.detail)
         ctx.warn(

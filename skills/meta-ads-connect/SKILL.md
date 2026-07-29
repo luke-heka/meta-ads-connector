@@ -6,7 +6,8 @@ description: Connect Claude to Meta Ads and manage the user's ad accounts — ca
 # Meta Ads
 
 You manage this user's Meta ads. Two official transports are already chosen for
-you; do not go looking for others.
+you; do not go looking for others. Meta's official Ads MCP server is the primary
+transport; Meta's official Ads CLI is an optional extra layered on top.
 
 ## Rule 1 — Probe first. Always.
 
@@ -18,40 +19,229 @@ conversation. Run it:
 meta-ads-connect probe --json
 ```
 
-It is a live authenticated call to Meta and takes a couple of seconds. Read
-`state` from the JSON and act on it:
+Read `state` from the JSON and act on it. The `transports` block reports each
+transport separately — "connected" is never an all-or-nothing verdict, and a
+working MCP connection counts as connected whatever state the CLI is in.
 
 | `state` | Exit | What it means | What you do |
 | --- | --- | --- | --- |
-| `OK` | 0 | Fully connected | **Stop. Do not run setup.** Get on with what the user asked. |
-| `MCP_MISSING` | 6 | Connected, MCP server not registered | `register-mcp` only. Nothing else. |
-| `NO_AD_ACCOUNTS` | 7 | Token works, no accounts assigned | `repair-assets` only. |
-| `TOKEN_REJECTED` | 1 | Meta revoked or rejected the token | Tell the user plainly, offer to re-mint, then `mint-token`. |
+| `OK` | 0 | Connected — at least one transport is live | **Stop. Do not run setup.** Get on with what the user asked. |
+| `MCP_NEEDS_LOGIN` | 18 | MCP server registered, Meta login not yet done | Tell the user to log in: use the connection, or run `/mcp`, and approve in the browser. Not a failure — never reinstall. |
+| `MCP_INCOMPLETE` | 19 | Logged in, but the connection is not working | One-step re-consent: `/mcp`, log in again, approve everything listed. Never reinstall. |
+| `MCP_MISSING` | 6 | CLI connected, MCP server not registered | `register-mcp` only. Nothing else. |
+| `NO_AD_ACCOUNTS` | 7 | CLI token works, no accounts assigned | `repair-assets` only. |
+| `TOKEN_REJECTED` | 1 | Meta revoked or rejected the CLI token | Tell the user plainly, offer to re-mint, then `mint-token`. |
 | `NO_TOKEN` | 2 | CLI installed, no token | `mint-token` only. **Do not reinstall.** |
-| `NOT_INSTALLED` | 3 | Nothing set up | Full setup — see below. |
+| `NOT_INSTALLED` | 3 | Neither transport set up | Register the MCP server — see "Connecting" below. Do not start from `install`. |
 | `RATE_LIMITED` | 4 | Meta is throttling | Wait, retry. Change nothing. |
 | `NETWORK_ERROR` | 5 | Meta unreachable | Check connection, retry. Change nothing. |
 | `META_ERROR` | 8 | Unrecognised Meta error | Run `doctor` and read what it says. |
+
+**If `meta-ads-connect` is not on your PATH, that is not a verdict.** The helper
+package is optional and its absence says nothing about the connection. Check the
+primary transport directly:
+
+```bash
+claude mcp list
+```
+
+A `meta-ads` line marked connected means the user **is** connected — behave
+exactly as for `OK`. A line marked "Needs authentication" is `MCP_NEEDS_LOGIN`:
+ask for the login. No `meta-ads` line at all means not registered — go to
+"Connecting".
 
 Never reconnect what is already connected. Restarting a finished setup is the
 single most-reported failure of every previous version of this, and re-running
 the probe is how you avoid it. If the user insists something is broken and the
 probe says otherwise, run `doctor` — do not start setup on their say-so.
 
-## Rule 2 — The CLI does everything. The MCP is for two things.
+## Rule 2 — The MCP server is primary. The CLI is an optional extra.
 
-- **Meta's official Ads CLI is primary and does everything.** Campaigns, ad
-  sets, ads, creatives including image and video upload from local files,
-  budgets, insights and reporting. Reach for it by default, every time.
-- **Meta's official Ads MCP server is for exactly two things:** custom
-  audiences and lookalikes (the CLI has no audience commands at all), and
-  Meta's internal analysis tools — opportunity score, industry benchmarks,
-  auction ranking benchmarks — which have no equivalent anywhere else.
+- **Meta's official Ads MCP server is the primary transport and the default
+  route for all ads work** — campaigns, ad sets, ads, creatives, budgets,
+  audiences and lookalikes, reporting, and Meta's internal analysis tools:
+  opportunity score, industry benchmarks, auction ranking benchmarks. Discover
+  what it actually offers at run time (Rule 4) and drive that.
+- **Meta's official Ads CLI is an optional enhancement**, never a requirement.
+  Reach for it only when it is already installed and working and the task
+  genuinely needs it. The one gap research has found so far: uploading image
+  and video files from the user's own machine — the MCP's image and video
+  tools were read-only when last checked. Re-check against the live tool list
+  (Rule 4) before asserting a gap; if the CLI really is needed and not set up,
+  say so plainly rather than silently working around it.
 - **The raw Graph API is out of scope.** So are all third-party Meta MCP
   servers. If you find yourself about to `curl graph.facebook.com` or install
   something else, stop: the answer is one of the two above.
 
-## Rule 3 — Build CLI commands from `--help`, never from memory or docs.
+## Rule 3 — The MCP path stands alone.
+
+The MCP path never requires the CLI, the Python package, a token, or a Python
+interpreter. A machine with nothing installed but this skill can reach a fully
+working connection.
+
+Do not offer `meta-ads-connect install`, `mint-token` or `repair-assets` to a
+user whose MCP connection is live: those commands belong to the optional CLI
+path and solve problems that user does not have. A broken or absent CLI must
+never be described as a broken connection while the MCP transport works.
+
+## Rule 4 — MCP tool names are unstable. Discover them.
+
+The MCP endpoint is unversioned and cannot be pinned. Its published tool count
+went from 29 to roughly 93 with no version change, and it is now the primary
+surface, so this rule carries the whole product: do not hardcode tool names or
+assume a tool exists because it did last week — list what is actually available
+and use that. If something the user asked for genuinely is not in the live tool
+list, say so plainly rather than silently substituting.
+
+## Rule 5 — Confirm before spending money.
+
+Full write access is deliberate. Safety lives here, in how you behave, not in a
+crippled grant.
+
+- **Create everything paused.** Campaigns, ad sets and ads are created in a
+  paused state unless the user has explicitly said to set them live in this
+  conversation.
+- **Confirm before anything that changes spend or sets something live.** That
+  means: setting status to `ACTIVE`, changing a budget, changing a bid strategy
+  or bid amount, and changing a schedule. State plainly what will change and
+  what it will cost, then wait for a yes.
+- **Deletions need an unmistakable instruction.** "Tidy up my campaigns" is not
+  one. Ask which, name them back, and wait.
+- Reading — insights, reporting, listing, benchmarks — needs no confirmation.
+  Do not pester the user about read-only work.
+
+## Rule 6 — Never print the token.
+
+The MCP path stores no token, but the optional CLI path does, and it has spend
+authority while transcripts get shared. Do not echo it, do not
+`cat ~/.meta-ads/.env`, do not include it in a command you show the user, and
+do not ask them to paste it to you. The kit moves it from browser to disk
+itself, and `exec` is what puts it into an environment. If you ever need to
+prove it exists, run `doctor`, which redacts it.
+
+## Connecting
+
+Only when `probe` returned `NOT_INSTALLED`, or `claude mcp list` shows no
+`meta-ads` server. Tell the user first: this takes about a minute, they will
+log in to Meta in their browser once, and they will be asked to approve access
+to their ad accounts and pages. Tell them to approve everything listed and
+**not to deselect any ad accounts or pages** on Meta's screen — a narrowed
+approval comes back as a broken connection, not a safer one.
+
+Preferred, when the helper package is installed:
+
+```bash
+meta-ads-connect register-mcp
+```
+
+Without the package — exactly as good:
+
+```bash
+claude mcp add --transport http meta-ads https://mcp.facebook.com/ads
+```
+
+No token is minted anywhere in this flow, and nothing is created at Meta.
+
+Then have them log in. Announce that a browser window is about to open, then
+use the connection — ask it to list their ad accounts — and Claude Code opens
+Meta's consent screen on first use (or the user runs `/mcp` and picks
+`meta-ads`).
+
+After consent, verify with a live read: list the ad accounts through the MCP
+and name them back to the user. The live read is what confirms the connection —
+not the flow's own success message. If the read fails or accounts the user
+expected are missing, treat it as `MCP_INCOMPLETE`: tell them what is missing
+and offer the one-step re-consent, never a reinstall.
+
+Re-running any of this on a connected machine is harmless: registration
+detects the already-registered case and says so.
+
+To undo it entirely: `claude mcp remove meta-ads`. Access can also be revoked
+at Meta's end at any time under facebook.com → Settings & privacy → Business
+integrations — tell the user this if they ask how to leave.
+
+### If registration fails with a redirect_uri error
+
+This is a known bug in Claude Code itself — not something the user did wrong,
+and nothing to do with their Meta account. The way around it is to point the
+connector at the user's own Meta app. It takes about five minutes, costs
+nothing, and needs no approval from Meta. Walk them through it — do not try to
+automate it: it needs their logged-in Meta session and fails silently under
+automation.
+
+1. Go to https://developers.facebook.com/apps and sign in with the Meta
+   account they use for their ads.
+2. Click "Create app". Any name is fine — "My Ads Connector" works.
+3. When asked what the app should do, choose "Other", then "Business".
+4. Open "App settings" → "Basic" and copy the App ID. It is a long number.
+5. In the left menu, add the "Facebook Login" product. Under its settings,
+   find "Valid OAuth Redirect URIs", add both of these, then save:
+   - `http://localhost:8080/callback` — if registration still fails, Claude
+     Code's error names the exact port to use in place of 8080.
+   - `https://claude.ai/api/mcp/auth_callback`
+6. Register with the App ID — either of these works:
+
+   ```bash
+   meta-ads-connect register-mcp --app-id THEIR_APP_ID
+   claude mcp add --transport http --client-id THEIR_APP_ID meta-ads https://mcp.facebook.com/ads
+   ```
+
+The app stays in development mode. No App Review and no business verification
+are needed — those are only for apps that manage other people's ad accounts;
+this one only manages their own.
+
+If the `claude` command itself is not on PATH, registration cannot happen from
+a terminal at all. If the user works in the Claude desktop app, route them
+there instead: Settings → Connectors → Add custom connector →
+https://mcp.facebook.com/ads
+
+## The optional CLI path
+
+Adds local image and video upload. Never required for a working connection —
+offer it, don't push it. It needs Python 3.13 or 3.12 and stores a system user
+token on disk. Only run the pieces that are actually missing:
+
+```bash
+meta-ads-connect install        # resolves a Python, installs the pinned CLI
+meta-ads-connect mint-token     # drives the browser; saves the token directly
+meta-ads-connect repair-assets  # fixes Business Manager / account assignment
+meta-ads-connect probe          # confirm
+```
+
+Every one of these is safe to re-run and each tells you what to do next when it
+fails.
+
+If `mint-token` exits 64, the browser automation extra is not installed. Install
+it and run `mint-token` again:
+
+```bash
+pip install 'meta-ads-connect[mint]'
+playwright install chromium
+```
+
+If that cannot be installed, `mint-token` also prints a manual walkthrough — read
+it out. It ends with a `meta-ads-connect store-token` command the user pipes
+their token into, so the token still never passes through this conversation.
+Never ask them to paste it to you.
+
+`mint-token` exiting 2 means no token was created. Read out whatever it printed:
+if the user has no Business Manager it prints how to create one, which takes two
+minutes and is the prerequisite for the CLI path.
+
+`repair-assets` exits 16 when it could only assign some of the ad accounts, or
+none. It prints the manual steps — read them out; the user finishes in Business
+Settings in under a minute. Exit 15 means they have no Business Manager and 17
+means they have no ad account: both are things only they can create, and both
+print a walkthrough.
+
+`repair-assets` is worth running whenever a CLI user says an ad account is
+missing, even if `probe` returned `OK`: `OK` means at least one transport works,
+and the repair is what finds the accounts that are not reachable.
+
+If `register-mcp` exits 13, that is the redirect_uri bug above — the command
+prints the same bring-your-own-app walkthrough.
+
+### Build CLI commands from `--help`, never from memory or docs.
 
 The CLI's documentation and its shipped binary disagree, confirmed in at least
 two places: the docs say `--instagram-actor-id` where the binary wants
@@ -82,103 +272,24 @@ meta-ads-connect exec -- ads campaign create --help
 Build the command from what that prints. If a flag you expected is not there,
 the binary is right and you are wrong.
 
-## Rule 4 — MCP tool names are unstable. Discover them.
-
-The MCP endpoint is unversioned and cannot be pinned. Its published tool count
-went from 29 to roughly 93 with no version change. Do not hardcode tool names or
-assume a tool exists because it did last week — list what is actually available
-and use that.
-
-## Rule 5 — Confirm before spending money.
-
-Full write access is deliberate. Safety lives here, in how you behave, not in a
-crippled token.
-
-- **Create everything paused.** Campaigns, ad sets and ads are created in a
-  paused state unless the user has explicitly said to set them live in this
-  conversation.
-- **Confirm before anything that changes spend or sets something live.** That
-  means: setting status to `ACTIVE`, changing a budget, changing a bid strategy
-  or bid amount, and changing a schedule. State plainly what will change and
-  what it will cost, then wait for a yes.
-- **Deletions need an unmistakable instruction.** "Tidy up my campaigns" is not
-  one. Ask which, name them back, and wait.
-- Reading — insights, reporting, listing, benchmarks — needs no confirmation.
-  Do not pester the user about read-only work.
-
-## Rule 6 — Never print the token.
-
-It has spend authority and transcripts get shared. Do not echo it, do not
-`cat ~/.meta-ads/.env`, do not include it in a command you show the user, and
-do not ask them to paste it to you. The kit moves it from browser to disk
-itself, and `exec` is what puts it into an environment. If you ever need to
-prove it exists, run `doctor`, which redacts it.
-
-## Setting up from scratch
-
-Only when `probe` returned `NOT_INSTALLED`. Tell the user first that it takes
-about five minutes, that they will need to log in to Meta themselves once, and
-that everything else is automatic.
-
-```bash
-meta-ads-connect install        # resolves a Python, installs the pinned CLI
-meta-ads-connect mint-token     # drives the browser; saves the token directly
-meta-ads-connect repair-assets  # fixes Business Manager / account assignment
-meta-ads-connect register-mcp   # adds Meta's official MCP server
-meta-ads-connect probe          # confirm
-```
-
-Every one of these is safe to re-run and each tells you what to do next when it
-fails. Run only the ones the probe said were missing.
-
-If `mint-token` exits 64, the browser automation extra is not installed. Install
-it and run `mint-token` again:
-
-```bash
-pip install 'meta-ads-connect[mint]'
-playwright install chromium
-```
-
-If that cannot be installed, `mint-token` also prints a manual walkthrough — read
-it out. It ends with a `store-token` command the user pipes their token into, so
-the token still never passes through this conversation. Never ask them to paste
-it to you.
-
-`mint-token` exiting 2 means no token was created. Read out whatever it printed:
-if the user has no Business Manager it prints how to create one, which takes two
-minutes and is the prerequisite for everything else.
-
-`repair-assets` exits 16 when it could only assign some of the ad accounts, or
-none. It prints the manual steps — read them out; the user finishes in Business
-Settings in under a minute. Exit 15 means they have no Business Manager and 17
-means they have no ad account: both are things only they can create, and both
-print a walkthrough.
-
-`repair-assets` is worth running whenever a user says an ad account is missing,
-even if `probe` returned `OK`: `OK` means at least one account is reachable, and
-the repair is what finds the ones that are not.
-
-If `register-mcp` exits 13, Claude Code hit a known redirect_uri bug of its own.
-The command prints a walkthrough for creating a bare developer app — read it out
-and let the user do those steps themselves. It needs no App Review and no
-business verification. Do not try to automate it: it needs a logged-in Meta
-session and fails silently under automation.
-
 ## When something is wrong
 
 ```bash
 meta-ads-connect doctor
 ```
 
-It reports each component separately and names the next action for each. Use it
-instead of guessing, and instead of asking the user to describe symptoms.
+It reports each component separately — each transport on its own line — and
+names the next action for each. Use it instead of guessing, and instead of
+asking the user to describe symptoms. Without the helper package, `claude mcp
+list` is the check for the primary transport.
 
 Known cases worth recognising:
 
 - **Python 3.14** — Meta's CLI has no build for it. `install` picks 3.13 or 3.12
-  itself; if neither exists it says so and names what to install.
-- **Windows** — no build exists at all. WSL is required, and the kit says so
-  rather than failing halfway through.
+  itself; if neither exists it says so and names what to install. The MCP path
+  does not care: it needs no Python at all.
+- **Windows** — Meta's CLI has no build at all, so the CLI path needs WSL, and
+  the kit says so rather than failing halfway through.
 
 ## What this kit will not do
 

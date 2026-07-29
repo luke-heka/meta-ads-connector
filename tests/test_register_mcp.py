@@ -11,7 +11,14 @@ from meta_ads_connect.config import MCP_NAME, MCP_URL
 from meta_ads_connect.context import Context
 from meta_ads_connect.exits import Exit
 
-from .conftest import FakeCommandRunner, Recorder, registeredMcp, unregisteredMcp
+from .conftest import (
+    FakeCommandRunner,
+    Recorder,
+    incompleteMcp,
+    needsLoginMcp,
+    registeredMcp,
+    unregisteredMcp,
+)
 
 REDIRECT_URI_ERROR = "Error: The provided redirect_uris are not registered for this client."
 
@@ -126,3 +133,25 @@ def test_reports_an_unrelated_failure_without_pretending_it_is_the_known_bug(
     assert runRegisterMcp(ctx) == Exit.USAGE
     assert "developers.facebook.com/apps" not in err.text
     assert "network unreachable" in err.text
+
+
+def test_registered_but_awaiting_login_points_at_the_login_not_a_re_add(
+    ctx: Context, runner: FakeCommandRunner, out: Recorder
+) -> None:
+    """Registration is done; the remaining step is the user's login. Adding
+    the server again would not move them forward."""
+    needsLoginMcp(runner)
+
+    assert runRegisterMcp(ctx) == Exit.OK
+    assert "log in" in out.text.lower()
+    assert not runner.ranCommandContaining("claude", "mcp", "add")
+
+
+def test_registered_but_broken_asks_for_re_consent_not_re_registration(
+    ctx: Context, runner: FakeCommandRunner, err: Recorder
+) -> None:
+    incompleteMcp(runner)
+
+    assert runRegisterMcp(ctx) == Exit.MCP_INCOMPLETE
+    assert "log in again" in err.text.lower()
+    assert not runner.ranCommandContaining("claude", "mcp", "add")

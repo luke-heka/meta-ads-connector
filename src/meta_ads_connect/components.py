@@ -101,7 +101,14 @@ def _probeBinary(ctx: Context, binary: str) -> tuple[bool, str | None]:
 
 
 class McpState(Enum):
-    REGISTERED = "registered"
+    #: Registered, consented, and answering. The transport is usable.
+    CONNECTED = "connected"
+    #: Registered, but the Meta login has never been completed. One step from
+    #: working; the action is "log in", never a reinstall.
+    NEEDS_LOGIN = "needs_login"
+    #: Registered and a login happened, but the connection does not work —
+    #: the grant may not cover what the kit needs. The action is re-consent.
+    INCOMPLETE = "incomplete"
     MISSING = "missing"
     #: The `claude` command is not on PATH, so registration cannot be read or
     #: written. Reported honestly rather than guessed at.
@@ -112,6 +119,15 @@ class McpState(Enum):
 class McpStatus:
     state: McpState
     detail: str
+
+    @property
+    def registered(self) -> bool:
+        """The server is in Claude Code's list, whatever its health."""
+        return self.state in (McpState.CONNECTED, McpState.NEEDS_LOGIN, McpState.INCOMPLETE)
+
+    @property
+    def usable(self) -> bool:
+        return self.state is McpState.CONNECTED
 
 
 def detectMcp(ctx: Context) -> McpStatus:
@@ -128,10 +144,39 @@ def detectMcp(ctx: Context) -> McpStatus:
             detail="Claude Code could not list its MCP servers.",
         )
 
-    listing = result.output
-    if MCP_URL in listing or re.search(rf"^\s*{re.escape(MCP_NAME)}\b", listing, re.MULTILINE):
-        return McpStatus(state=McpState.REGISTERED, detail=f"Registered as `{MCP_NAME}`.")
-    return McpStatus(state=McpState.MISSING, detail="Meta's Ads MCP server is not registered.")
+    line = _serverLine(result.output)
+    if line is None:
+        return McpStatus(state=McpState.MISSING, detail="Meta's Ads MCP server is not registered.")
+    return _classifyServerLine(line)
+
+
+def _serverLine(listing: str) -> str | None:
+    for line in listing.splitlines():
+        if MCP_URL in line or re.match(rf"\s*{re.escape(MCP_NAME)}\b", line):
+            return line
+    return None
+
+
+def _classifyServerLine(line: str) -> McpStatus:
+    """Read the health `claude mcp list` reports next to the server.
+
+    The exact wording is Claude Code's, not ours, so this matches loosely and
+    defaults to CONNECTED when the line carries no recognisable health marker —
+    a registered server must never read as absent, which is the reconnect bug
+    all over again.
+    """
+    lowered = line.lower()
+    if "needs authentication" in lowered or "not authenticated" in lowered:
+        return McpStatus(
+            state=McpState.NEEDS_LOGIN,
+            detail=f"Registered as `{MCP_NAME}`, waiting for you to log in to Meta.",
+        )
+    if "✗" in line or "failed" in lowered:
+        return McpStatus(
+            state=McpState.INCOMPLETE,
+            detail=f"Registered as `{MCP_NAME}`, but the connection is not working.",
+        )
+    return McpStatus(state=McpState.CONNECTED, detail=f"Registered as `{MCP_NAME}` and connected.")
 
 
 # --- Token, against Meta ---------------------------------------------------
