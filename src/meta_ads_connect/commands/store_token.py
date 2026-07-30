@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TextIO
 
-from ..config import TOKEN_ENV_VAR
+from ..config import LEGACY_TOKEN_ENV_VAR, TOKEN_ENV_VAR
 from ..context import Context
 from ..exits import Exit
 from ..tokens import describePermissions, writeToken
@@ -30,7 +30,7 @@ def runStoreToken(ctx: Context, *, source: TextIO) -> int:
     ctx.secret = token
 
     if _looksLikeEnvLine(token):
-        # Tolerate a whole `META_ACCESS_TOKEN=…` line being pasted in — a very
+        # Tolerate a whole `ACCESS_TOKEN=…` line being pasted in — a very
         # easy mistake to make, and storing it verbatim would break silently.
         token = token.split("=", 1)[1].strip().strip("'\"")
         ctx.secret = token
@@ -48,4 +48,6 @@ def runStoreToken(ctx: Context, *, source: TextIO) -> int:
 
 
 def _looksLikeEnvLine(value: str) -> bool:
-    return value.startswith(TOKEN_ENV_VAR) and "=" in value
+    # Either name: guides and third-party servers say `META_ACCESS_TOKEN`, so
+    # that is what a paste is most likely to carry.
+    return value.startswith((TOKEN_ENV_VAR, LEGACY_TOKEN_ENV_VAR)) and "=" in value
