@@ -1,11 +1,6 @@
 # Setup prompt
 
-Copy everything inside the box below and paste it into Claude Code as one message.
-That is the whole install. Pasting it again later is also how you update to the
-latest version.
-
-This prompt only installs the kit onto your machine. It does not touch your Meta
-account — connecting happens in your next session, and you approve it yourself.
+Paste everything inside the box into a new Claude Code session as one message.
 
 ```text
 Install the Meta Ads connector kit on this machine. Follow these steps exactly, in order, and do nothing beyond them.
@@ -19,7 +14,3 @@ Install the Meta Ads connector kit on this machine. Follow these steps exactly, 
 
 Do not connect to anything, do not open a browser, do not touch my Meta account, and do not create or store any token or credential. Installing and connecting are separate steps — this prompt only installs.
 ```
-
-The Skool post reproduces this block verbatim, and so does the README. If they
-ever disagree, this file is the source of truth — `tests/test_setup_prompt.py`
-holds them in step.
