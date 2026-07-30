@@ -26,6 +26,39 @@ def skill() -> str:
     return SKILL_PATH.read_text(encoding="utf-8")
 
 
+def unwrap(text: str) -> str:
+    """SKILL.md wraps at ~80 columns and leans on `**bold**`, so a phrase the
+    prose states plainly can still fail a naive `in` check when it happens to
+    straddle a line break. Every phrase assertion goes through this."""
+    return " ".join(text.replace("**", "").split())
+
+
+def block(skill: str, opening: str, until: str | None = None) -> str:
+    """The prose from `opening` up to `until` (or the next Markdown heading),
+    unwrapped."""
+    for marker in (opening, until):
+        assert marker is None or marker in skill, f"SKILL.md no longer contains {marker!r}"
+    body = skill[skill.index(opening) :]
+    ends = [match.start() for match in [re.search(r"\n#+ ", body)] if match]
+    if until is not None:
+        ends.append(body.index(until))
+    return unwrap(body[: min(ends)] if ends else body)
+
+
+@pytest.fixture(scope="module")
+def capability_tour(skill: str) -> str:
+    """Step 4 of the Connecting flow — the post-connect capability tour."""
+    return block(skill, "Step 4 —", until="Re-running any of this")
+
+
+@pytest.fixture(scope="module")
+def probe_ok_row(skill: str) -> str:
+    """Rule 1's routing-table row for a probe that came back `OK`."""
+    rows = [line for line in skill.splitlines() if line.startswith("| `OK`")]
+    assert rows, "Rule 1 no longer has a routing-table row for OK"
+    return unwrap(rows[0])
+
+
 def test_the_skill_file_exists_where_the_kit_installs_it() -> None:
     assert SKILL_PATH.exists(), f"SKILL.md is missing from {SKILL_PATH.parent}"
 
@@ -190,6 +223,73 @@ def test_it_announces_consent_and_forbids_narrowing_the_grant(skill: str) -> Non
 def test_it_verifies_the_connection_with_a_live_read_after_consent(skill: str) -> None:
     lowered = skill.lower()
     assert "live read" in lowered
+
+
+def test_the_connect_flow_ends_with_a_capability_tour(skill: str, capability_tour: str) -> None:
+    """A member who has just connected does not know what they bought. The
+    tour is the step that turns a working connection into a first result."""
+    connecting = skill[skill.index("## Connecting") :]
+    assert "Step 4 —" in connecting.split("\n### ", 1)[0], (
+        "the capability tour is not part of the Connecting flow"
+    )
+    assert "plain english" in capability_tour.lower()
+
+
+def test_the_tour_describes_capability_areas_not_a_tool_inventory(capability_tour: str) -> None:
+    """Rule 4: the published tool count went 29 → 93 with no version change,
+    so any list of tool names in this skill is wrong by next week. The tour
+    talks about what the member can do and checks it against the live list."""
+    lowered = capability_tour.lower()
+    assert "live tool list" in lowered
+    assert "tool names" in lowered
+    assert "mcp__" not in capability_tour, "the tour hardcodes MCP tool names"
+    assert "ads_" not in capability_tour, "the tour hardcodes MCP tool names"
+    for area in ("campaign", "budget", "audience", "creative", "reporting", "benchmark"):
+        assert area in lowered, f"the tour never mentions {area!r} as a capability area"
+
+
+def test_the_first_action_the_tour_offers_is_read_only(capability_tour: str) -> None:
+    """Rule 5: opening a brand-new connection by offering to create something
+    or move spend is how a member's first minute becomes a mistake."""
+    lowered = capability_tour.lower()
+    assert "read-only" in lowered
+    assert "changes spend" in lowered
+    assert "sets something live" in lowered
+    assert "never open" in lowered
+
+
+def test_the_tour_is_grounded_in_what_the_live_read_just_returned(capability_tour: str) -> None:
+    """The offer is personal or it is filler: the ad accounts came back named
+    in step 3, so the tour names one instead of asking which."""
+    lowered = capability_tour.lower()
+    assert "live read" in lowered
+    assert "ad account" in lowered
+    assert "instead of asking" in lowered
+
+
+def test_the_tour_offers_exactly_one_action_and_stays_short(capability_tour: str) -> None:
+    """A 93-tool wall is not a tour. Short list, one offer, done."""
+    assert "exactly one" in capability_tour.lower()
+    words = len(capability_tour.split())
+    assert words < 260, f"the capability tour has grown to {words} words"
+
+
+def test_the_tour_fires_at_connect_time_only(capability_tour: str, probe_ok_row: str) -> None:
+    """Rule 1's `OK` row is the hot path: a member who is already connected
+    asked for something, and a tour is not it."""
+    assert "connect time only" in capability_tour.lower()
+    assert "get on with what the user asked" in probe_ok_row.lower()
+    assert "tour" not in probe_ok_row.lower(), "the OK path now instructs a capability tour"
+
+
+def test_the_tour_is_an_imperative_rather_than_a_suggestion(capability_tour: str) -> None:
+    """Sonnet was observed handing the member a command instead of running it,
+    ignoring softly-worded steps in this same file. Hedged wording here reads
+    as skippable."""
+    lowered = capability_tour.lower()
+    assert "not optional" in lowered
+    for hedge in ("consider ", "you may want", "if you like", "optionally", "feel free"):
+        assert hedge not in lowered, f"the tour hedges with {hedge!r}"
 
 
 def test_it_names_where_to_revoke_mcp_access(skill: str) -> None:
