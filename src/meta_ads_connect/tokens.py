@@ -13,7 +13,7 @@ import re
 import stat
 from pathlib import Path
 
-from .config import TOKEN_ENV_VAR, Paths
+from .config import LEGACY_TOKEN_ENV_VAR, TOKEN_ENV_VAR, Paths
 
 #: Directory and file modes. Owner-only, both.
 DIR_MODE = 0o700
@@ -47,7 +47,7 @@ def readToken(paths: Paths) -> str | None:
 
     for line in contents.splitlines():
         match = _ENV_LINE.match(line)
-        if not match or match.group(1) != TOKEN_ENV_VAR:
+        if not match or match.group(1) not in (TOKEN_ENV_VAR, LEGACY_TOKEN_ENV_VAR):
             continue
         value = match.group(2).strip().strip("'\"")
         if value:

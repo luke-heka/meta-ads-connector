@@ -91,8 +91,36 @@ def test_ignores_surrounding_whitespace_from_a_clipboard_paste(
 
 
 def test_accepts_a_whole_env_line_being_pasted_by_mistake(ctx: Context, paths: Paths) -> None:
-    """Storing `META_ACCESS_TOKEN=EAA...` verbatim would break silently later."""
+    """Storing `ACCESS_TOKEN=EAA...` verbatim would break silently later."""
     _store(ctx, f"{TOKEN_ENV_VAR}={VALID_TOKEN}")
+
+    assert readToken(paths) == VALID_TOKEN
+
+
+def test_accepts_a_pasted_line_carrying_the_third_party_variable_name(
+    ctx: Context, paths: Paths
+) -> None:
+    """Guides and third-party Meta MCP servers say `META_ACCESS_TOKEN`, so that
+    is the name a paste is most likely to carry."""
+    _store(ctx, f"META_ACCESS_TOKEN={VALID_TOKEN}")
+
+    assert readToken(paths) == VALID_TOKEN
+
+
+def test_writes_only_the_name_the_cli_reads(ctx: Context, paths: Paths) -> None:
+    """Written out literally: importing the constant would pass for any value."""
+    _store(ctx, VALID_TOKEN)
+
+    contents = paths.env_file.read_text()
+    assert contents.startswith("ACCESS_TOKEN=")
+    assert "META_ACCESS_TOKEN" not in contents
+
+
+def test_reads_a_token_stored_under_the_old_name(paths: Paths) -> None:
+    """An early setup wrote `META_ACCESS_TOKEN=`. Reading it must keep working,
+    or that owner's token looks like it vanished."""
+    paths.root.mkdir(parents=True)
+    paths.env_file.write_text(f"META_ACCESS_TOKEN={VALID_TOKEN}\n")
 
     assert readToken(paths) == VALID_TOKEN
 
