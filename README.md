@@ -40,6 +40,10 @@ Then start a **new** Claude session and type `/meta-ads-connect` — or just say
 access, and you're connected. No access token is stored on your machine, and no
 Python is needed.
 
+Claude finishes by naming the ad accounts it can now see, telling you in plain
+English what it can do with them, and offering one first thing to look at — a
+read-only look, never anything that spends.
+
 The prompt is versioned at [`setup-prompt.md`](setup-prompt.md); the Skool post
 and this README both reproduce it from there.
 
@@ -51,6 +55,9 @@ One skill, `meta-ads-connect`. It:
   connection. You log in to Meta once in your browser; no long-lived credential
   ever sits on your disk.
 - **Checks first.** If you're already connected, it says so and stops.
+- **Shows you what you just got.** Once the connection is proved, it lists what
+  it can now do for your accounts in plain English and offers one read-only
+  first look.
 - Optionally layers on Meta's **official Ads CLI** for the main thing the MCP
   server can't do: uploading image and video files from your own machine.
 
@@ -144,9 +151,10 @@ uv venv && uv pip install -e '.[dev]'
 Tests fake exactly two boundaries — outbound HTTP to Meta, and subprocess execution — and
 assert on what each subcommand actually does: its exit code, its output, and the state of
 the filesystem afterwards. No test asserts which internal function was called, so a
-refactor that keeps behaviour identical cannot break the suite. The two load-bearing
-prose artifacts — `SKILL.md` and `setup-prompt.md` — are asserted on directly by
-`tests/test_skill_routing.py` and `tests/test_setup_prompt.py`.
+refactor that keeps behaviour identical cannot break the suite. The load-bearing prose
+artifacts are asserted on directly: `SKILL.md` by `tests/test_skill_routing.py`,
+`setup-prompt.md` by `tests/test_setup_prompt.py`, and the promises this README and the
+docs make about behaviour by `tests/test_docs_promises.py`.
 
 ## Before release
 
@@ -156,7 +164,8 @@ capability inventory the routing rules depend on:
 1. Paste the setup prompt into a clean Claude Code session on a machine with no prior
    setup; confirm the skill exists in the next session. Repeat on a machine with no
    Python at all.
-2. Run connect. Does MCP consent succeed, and what does the consent screen list?
+2. Run connect. Does MCP consent succeed, and what does the consent screen list? Does the
+   capability tour then fire, name a real ad account, and offer something read-only?
 3. Capture a live `tools/list` from the MCP server and commit it with its capture date.
 4. Exercise the promised surface end to end through the MCP alone — enumerate accounts,
    create a paused campaign, an ad set and an ad, attach a creative, pull reporting,
