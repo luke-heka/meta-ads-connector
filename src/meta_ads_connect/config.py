@@ -58,8 +58,17 @@ REQUIRED_SCOPES: tuple[str, ...] = (
 #: Whoever owns this kit re-checks the whole picture on this date.
 RECHECK_DATE = "September 2026"
 
-#: The environment variable name the Ads CLI reads its token from.
-TOKEN_ENV_VAR = "META_ACCESS_TOKEN"
+#: The environment variable name the Ads CLI reads its token from. Verified
+#: against the running 1.1.0 binary — it is unprefixed, and prefixing it
+#: ``META_`` reports "Not authenticated" while naming ``ACCESS_TOKEN`` in the
+#: error. Most third-party Meta MCP servers do use ``META_ACCESS_TOKEN``, which
+#: is where the wrong name came from.
+TOKEN_ENV_VAR = "ACCESS_TOKEN"
+
+#: The name this kit wrote before the one above was verified. Accepted when
+#: reading a stored token or a pasted line so an early setup keeps working;
+#: never written.
+LEGACY_TOKEN_ENV_VAR = "META_ACCESS_TOKEN"
 
 #: Overrides the kit's home directory. Used by the test suite; also lets an
 #: owner relocate the token file if they want to.

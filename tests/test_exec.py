@@ -33,7 +33,13 @@ def test_runs_the_managed_binary_rather_than_a_bare_meta(
 def test_puts_the_token_in_the_environment_for_that_one_invocation(
     ctx: Context, runner: FakeCommandRunner, paths: Paths
 ) -> None:
-    """Per invocation and in memory — never a shell profile, never a keychain."""
+    """Per invocation and in memory — never a shell profile, never a keychain.
+
+    The variable name is written out literally rather than imported from config.
+    Asserting `environment[TOKEN_ENV_VAR]` would pass for any value of that
+    constant, including a wrong one — which is exactly how the `META_ACCESS_TOKEN`
+    slip survived a green suite.
+    """
     installedCli(runner, paths)
     writeToken(paths, VALID_TOKEN)
     runner.respond(["meta", "ads"], stdout="ok")
@@ -41,7 +47,8 @@ def test_puts_the_token_in_the_environment_for_that_one_invocation(
     runExec(ctx, ["ads", "account", "list"])
 
     environment = runner.environments[-1]
-    assert environment[TOKEN_ENV_VAR] == VALID_TOKEN
+    assert environment["ACCESS_TOKEN"] == VALID_TOKEN
+    assert "META_ACCESS_TOKEN" not in environment
 
 
 def test_relays_what_the_cli_printed(
