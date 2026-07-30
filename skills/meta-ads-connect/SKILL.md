@@ -185,16 +185,16 @@ connection — not the flow's own success message (Rule 7). If the read fails or
 accounts the user expected are missing, treat it as `MCP_INCOMPLETE`: tell
 them what is missing and offer the one-step re-consent, never a reinstall.
 
-Step 4 — tell them what they can now do, then do one thing. This step is **not
-optional** and it is not a suggestion: run it every time a connect flow ends in
-a successful live read.
+Step 4 — tell them what they can now do, then offer one first action. This step
+is **not optional** and it is not a suggestion: run it every time a connect flow
+ends in a successful live read.
 
 - **Name the capability areas in plain English** — a handful of short groups,
   never a tool-by-tool inventory. Campaigns, ad sets and ads; budgets and
-  scheduling; audiences and lookalikes; creatives, including image and video;
-  reporting and insights; and Meta's own benchmarks. **Check each group against
-  the live tool list before you claim it** (Rule 4) — tool names shift under
-  you, so describe what the user can do and never read tool names out.
+  scheduling; audiences and lookalikes; creatives; reporting and insights; and
+  Meta's own benchmarks. **Check each group against the live tool list before
+  you claim it** (Rule 4) — tool names shift under you, so describe what the
+  user can do and never read tool names out.
 - **Then offer exactly one first action, and make it read-only** (Rule 5): a
   performance snapshot, the campaigns currently running, an industry benchmark.
   **Never open** a new connection by offering anything that creates, changes

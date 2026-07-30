@@ -26,29 +26,35 @@ def skill() -> str:
     return SKILL_PATH.read_text(encoding="utf-8")
 
 
-def unwrap(text: str) -> str:
+def unwrapProse(text: str) -> str:
     """SKILL.md wraps at ~80 columns and leans on `**bold**`, so a phrase the
     prose states plainly can still fail a naive `in` check when it happens to
     straddle a line break. Every phrase assertion goes through this."""
     return " ".join(text.replace("**", "").split())
 
 
-def block(skill: str, opening: str, until: str | None = None) -> str:
-    """The prose from `opening` up to `until` (or the next Markdown heading),
-    unwrapped."""
-    for marker in (opening, until):
-        assert marker is None or marker in skill, f"SKILL.md no longer contains {marker!r}"
+def proseBetween(skill: str, opening: str, closing: str) -> str:
+    """The unwrapped prose from `opening` up to `closing`. Assertions about one
+    rule are scoped to that rule's own text, so wording that happens to live
+    somewhere else in the file cannot satisfy them."""
+    for marker in (opening, closing):
+        assert marker in skill, f"SKILL.md no longer contains {marker!r}"
     body = skill[skill.index(opening) :]
-    ends = [match.start() for match in [re.search(r"\n#+ ", body)] if match]
-    if until is not None:
-        ends.append(body.index(until))
-    return unwrap(body[: min(ends)] if ends else body)
+    return unwrapProse(body[: body.index(closing)])
 
 
 @pytest.fixture(scope="module")
 def capability_tour(skill: str) -> str:
     """Step 4 of the Connecting flow — the post-connect capability tour."""
-    return block(skill, "Step 4 —", until="Re-running any of this")
+    return proseBetween(skill, "Step 4 —", "Re-running any of this")
+
+
+@pytest.fixture(scope="module")
+def rule_one(skill: str) -> str:
+    """All of Rule 1 — the routing table and the already-connected prose
+    around it. That whole rule, not just the `OK` row, is the path a member
+    who is already connected travels."""
+    return proseBetween(skill, "## Rule 1", "## Rule 2")
 
 
 @pytest.fixture(scope="module")
@@ -56,7 +62,7 @@ def probe_ok_row(skill: str) -> str:
     """Rule 1's routing-table row for a probe that came back `OK`."""
     rows = [line for line in skill.splitlines() if line.startswith("| `OK`")]
     assert rows, "Rule 1 no longer has a routing-table row for OK"
-    return unwrap(rows[0])
+    return unwrapProse(rows[0])
 
 
 def test_the_skill_file_exists_where_the_kit_installs_it() -> None:
@@ -175,7 +181,7 @@ def test_it_gives_no_mac_only_restart_instruction(skill: str) -> None:
 def test_it_says_the_tool_list_is_not_proof_of_a_connection(skill: str) -> None:
     """A complete, valid Meta tool schema has been observed from a stale tool
     list while the server was deleted and unauthenticated."""
-    unwrapped = " ".join(skill.lower().replace("**", "").split())
+    unwrapped = unwrapProse(skill).lower()
     assert "not proof of a working connection" in unwrapped
     assert "stale" in unwrapped
 
@@ -183,14 +189,14 @@ def test_it_says_the_tool_list_is_not_proof_of_a_connection(skill: str) -> None:
 def test_it_explains_that_mcp_tools_arrive_asynchronously(skill: str) -> None:
     """Early absence is not evidence: tools appear ~13–20s after session
     start, and inventing a connection problem from that is a real failure."""
-    unwrapped = " ".join(skill.lower().split())
+    unwrapped = unwrapProse(skill).lower()
     assert "asynchronously" in unwrapped
     assert "not evidence" in unwrapped
 
 
 def test_it_documents_the_scopes_meta_will_ask_to_approve(skill: str) -> None:
     """The permission list must not be a surprise on Meta's screen."""
-    unwrapped = " ".join(skill.lower().split())
+    unwrapped = unwrapProse(skill).lower()
     for hint in ("catalog", "business management", "pages", "instagram"):
         assert hint in unwrapped, f"the consent preview never mentions {hint!r}"
 
@@ -227,10 +233,12 @@ def test_it_verifies_the_connection_with_a_live_read_after_consent(skill: str) -
 
 def test_the_connect_flow_ends_with_a_capability_tour(skill: str, capability_tour: str) -> None:
     """A member who has just connected does not know what they bought. The
-    tour is the step that turns a working connection into a first result."""
-    connecting = skill[skill.index("## Connecting") :]
-    assert "Step 4 —" in connecting.split("\n### ", 1)[0], (
-        "the capability tour is not part of the Connecting flow"
+    tour is the step that turns a working connection into a first result, and
+    it comes last — after the live read that gives it something to say."""
+    connecting = proseBetween(skill, "## Connecting", "### If registration fails")
+    assert "Step 4 —" in connecting, "the capability tour is not part of the Connecting flow"
+    assert connecting.index("Step 3 —") < connecting.index("Step 4 —"), (
+        "the tour runs before the live read it is supposed to be grounded in"
     )
     assert "plain english" in capability_tour.lower()
 
@@ -250,12 +258,16 @@ def test_the_tour_describes_capability_areas_not_a_tool_inventory(capability_tou
 
 def test_the_first_action_the_tour_offers_is_read_only(capability_tour: str) -> None:
     """Rule 5: opening a brand-new connection by offering to create something
-    or move spend is how a member's first minute becomes a mistake."""
+    or move spend is how a member's first minute becomes a mistake. The worked
+    examples are pinned too — the rule is only as safe as they are, and a
+    swapped example would otherwise pass every other assertion here."""
     lowered = capability_tour.lower()
     assert "read-only" in lowered
     assert "changes spend" in lowered
     assert "sets something live" in lowered
     assert "never open" in lowered
+    for example in ("performance snapshot", "campaigns currently running", "industry benchmark"):
+        assert example in lowered, f"the tour no longer offers {example!r} as a first action"
 
 
 def test_the_tour_is_grounded_in_what_the_live_read_just_returned(capability_tour: str) -> None:
@@ -268,18 +280,26 @@ def test_the_tour_is_grounded_in_what_the_live_read_just_returned(capability_tou
 
 
 def test_the_tour_offers_exactly_one_action_and_stays_short(capability_tour: str) -> None:
-    """A 93-tool wall is not a tour. Short list, one offer, done."""
+    """A 93-tool wall is not a tour. Short list, one offer, done — the ceiling
+    is roughly the current length plus one bullet, because "short" is the
+    constraint that stops this step growing back into the wall it replaced."""
     assert "exactly one" in capability_tour.lower()
     words = len(capability_tour.split())
     assert words < 260, f"the capability tour has grown to {words} words"
 
 
-def test_the_tour_fires_at_connect_time_only(capability_tour: str, probe_ok_row: str) -> None:
-    """Rule 1's `OK` row is the hot path: a member who is already connected
-    asked for something, and a tour is not it."""
+def test_the_tour_fires_at_connect_time_only(
+    capability_tour: str, probe_ok_row: str, rule_one: str
+) -> None:
+    """Rule 1 is the hot path: a member who is already connected asked for
+    something, and a tour is not it. The guard covers the whole rule, not just
+    the `OK` row — `claude mcp list` showing a connected server routes to the
+    same place, and a tour instruction added there would be the same bug."""
     assert "connect time only" in capability_tour.lower()
     assert "get on with what the user asked" in probe_ok_row.lower()
-    assert "tour" not in probe_ok_row.lower(), "the OK path now instructs a capability tour"
+    assert "tour" not in rule_one.lower(), (
+        "Rule 1's already-connected path now instructs a capability tour"
+    )
 
 
 def test_the_tour_is_an_imperative_rather_than_a_suggestion(capability_tour: str) -> None:
@@ -293,7 +313,7 @@ def test_the_tour_is_an_imperative_rather_than_a_suggestion(capability_tour: str
 
 
 def test_it_names_where_to_revoke_mcp_access(skill: str) -> None:
-    unwrapped = " ".join(skill.split())
+    unwrapped = unwrapProse(skill)
     assert "Business integrations" in unwrapped
 
 
