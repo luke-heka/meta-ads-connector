@@ -265,7 +265,8 @@ accidentally grant less than the kit needs.
 - Before opening consent, the skill states what is about to be approved in plain language
   and tells the member not to deselect ad accounts or pages on the screen.
 - After consent, the connection is verified against a live read — the accounts the
-  connection can actually see — rather than trusting the flow's own success signal.
+  connection can actually see — rather than trusting the flow's own success signal. The
+  flow does not end there: see the amendment below on the capability tour.
 - A grant that verifies as narrower than required produces the "consented but incomplete"
   state, names what is missing, and offers re-consent as a single step.
 - If the connector's requested scope set is configurable at registration time, request the
@@ -295,6 +296,8 @@ fixed:
   since the MCP is now the primary surface.
 - Rules 5 (confirm before spend) and 6 (never print the token) survive unchanged.
 - Every claim about what the CLI does that the inventory contradicts is corrected.
+- The Connecting flow's steps end at the live read as specified here; a fourth step was
+  added later — see the amendment below.
 
 ### The CLI path is demoted, not removed
 
@@ -305,6 +308,36 @@ contradicts a healthy MCP connection.
 
 The README is restructured to lead with the paste-in prompt and the MCP path, with the CLI
 presented as an optional extra for people who want it.
+
+### Amendment, 2026-07-30 — the connect flow ends with a capability tour
+
+Added after the connect path shipped, and recorded in full in
+[ADR-0002](../adr/0002-post-connect-capability-tour.md). The stories above are numbered and
+cross-referenced, so this lands as one new story rather than a renumbering:
+
+67. As a business owner, I want to be told in plain English what I can now do and offered
+    one first thing, at the moment the connection is proved, so that a working connection
+    turns into a result rather than a green tick I have to interpret.
+
+The shape, which the tests pin because it is prose:
+
+- **Capability areas, never a tool inventory.** Plain-English groups — campaigns and ads,
+  budgets, audiences, creatives, reporting, benchmarks — each checked against the live tool
+  list before it is claimed. This is Rule 4 applied to the tour: the tool count moved 29 →
+  93 with no version change, so a written inventory is wrong by next week. The creatives
+  group claims no local image and video upload, that being the CLI's one known gap.
+- **The first offer is read-only.** A performance snapshot, the campaigns currently
+  running, an industry benchmark. Never anything that creates, changes spend, or sets
+  something live: Rule 5 makes spend confirmable, and this makes the opening move safe
+  without needing a confirmation at all.
+- **Grounded in the live read.** Story 21 already names the reachable accounts back; the
+  offer names one of them instead of asking which.
+- **Connect time only.** It fires at the end of a successful connect flow and nowhere
+  else. `OK` from `probe` still means get on with what the user asked, so an
+  already-connected member is never toured.
+- **Short, and imperative.** A handful of groups and one offer, written with the force of
+  the rules rather than as a suggestion — soft wording in this file has been observed
+  being skipped in live use.
 
 ### Idempotence
 
@@ -414,6 +447,8 @@ before release, and it doubles as the capability inventory:
 1. Paste the setup prompt into a clean Claude Code session on a machine with no prior setup.
    Confirm the skill is present in the next session and the invocation works.
 2. Run connect. Confirm consent succeeds and record exactly what the consent screen lists.
+   Confirm the capability tour fires, that every area it claims is actually in the live
+   tool list, and that what it offers first is read-only.
 3. Capture a live `tools/list` and commit it with its capture date.
 4. Exercise the promised surface end to end through the MCP alone — enumerate accounts,
    create a paused campaign, an ad set and an ad, attach a creative, pull reporting, then
